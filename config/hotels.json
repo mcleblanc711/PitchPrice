@@ -1,0 +1,209 @@
+{
+  "cities": {
+    "toronto": {
+      "name": "Toronto",
+      "stadium": "BMO Field",
+      "stadium_address": "170 Princes' Blvd, Toronto, ON",
+      "date_range": {
+        "start": "2026-06-10",
+        "end": "2026-07-05"
+      },
+      "game_dates": [
+        "2026-06-12",
+        "2026-06-17",
+        "2026-06-20",
+        "2026-06-23",
+        "2026-06-26",
+        "2026-07-02"
+      ],
+      "hotels": [
+        {
+          "id": "tor-hotel-x",
+          "name": "Hotel X Toronto",
+          "segment": "upscale",
+          "proximity": "near",
+          "address": "111 Princes' Blvd, Toronto, ON",
+          "notes": "Directly at Exhibition Place, adjacent to BMO Field"
+        },
+        {
+          "id": "tor-fairmont-royal-york",
+          "name": "Fairmont Royal York",
+          "segment": "luxury",
+          "proximity": "medium",
+          "address": "100 Front St W, Toronto, ON",
+          "notes": "Historic landmark hotel, Union Station area"
+        },
+        {
+          "id": "tor-ritz-carlton",
+          "name": "The Ritz-Carlton Toronto",
+          "segment": "luxury",
+          "proximity": "medium",
+          "address": "181 Wellington St W, Toronto, ON",
+          "notes": "Premium luxury, Entertainment District"
+        },
+        {
+          "id": "tor-delta-downtown",
+          "name": "Delta Hotels Toronto",
+          "segment": "upscale",
+          "proximity": "medium",
+          "address": "75 Lower Simcoe St, Toronto, ON",
+          "notes": "Downtown waterfront area"
+        },
+        {
+          "id": "tor-hyatt-regency",
+          "name": "Hyatt Regency Toronto",
+          "segment": "upscale",
+          "proximity": "medium",
+          "address": "370 King St W, Toronto, ON",
+          "notes": "King West entertainment area"
+        },
+        {
+          "id": "tor-chelsea",
+          "name": "Chelsea Hotel Toronto",
+          "segment": "midscale",
+          "proximity": "far",
+          "address": "33 Gerrard St W, Toronto, ON",
+          "notes": "Large hotel, Yonge-Dundas area"
+        },
+        {
+          "id": "tor-holiday-inn-downtown",
+          "name": "Holiday Inn Toronto Downtown Centre",
+          "segment": "midscale",
+          "proximity": "medium",
+          "address": "30 Carlton St, Toronto, ON",
+          "notes": "Central downtown location"
+        },
+        {
+          "id": "tor-courtyard-marriott",
+          "name": "Courtyard by Marriott Toronto Downtown",
+          "segment": "midscale",
+          "proximity": "medium",
+          "address": "475 Yonge St, Toronto, ON",
+          "notes": "College Park area"
+        },
+        {
+          "id": "tor-super-8",
+          "name": "Super 8 by Wyndham Downtown Toronto",
+          "segment": "economy",
+          "proximity": "far",
+          "address": "222 Spadina Ave, Toronto, ON",
+          "notes": "Chinatown area, budget option"
+        },
+        {
+          "id": "tor-days-inn",
+          "name": "Days Inn by Wyndham Toronto Downtown",
+          "segment": "economy",
+          "proximity": "medium",
+          "address": "30 Carlton St, Toronto, ON",
+          "notes": "Downtown budget option"
+        }
+      ]
+    },
+    "vancouver": {
+      "name": "Vancouver",
+      "stadium": "BC Place",
+      "stadium_address": "777 Pacific Blvd, Vancouver, BC",
+      "date_range": {
+        "start": "2026-06-15",
+        "end": "2026-07-08"
+      },
+      "game_dates": [
+        "2026-06-13",
+        "2026-06-18",
+        "2026-06-21",
+        "2026-06-24",
+        "2026-06-26",
+        "2026-07-02",
+        "2026-07-07"
+      ],
+      "hotels": [
+        {
+          "id": "van-jw-marriott-parq",
+          "name": "JW Marriott Parq Vancouver",
+          "segment": "luxury",
+          "proximity": "near",
+          "address": "39 Smithe St, Vancouver, BC",
+          "notes": "Adjacent to BC Place stadium"
+        },
+        {
+          "id": "van-fairmont-pacific-rim",
+          "name": "Fairmont Pacific Rim",
+          "segment": "luxury",
+          "proximity": "near",
+          "address": "1038 Canada Pl, Vancouver, BC",
+          "notes": "Waterfront luxury, Coal Harbour"
+        },
+        {
+          "id": "van-hyatt-regency",
+          "name": "Hyatt Regency Vancouver",
+          "segment": "upscale",
+          "proximity": "near",
+          "address": "655 Burrard St, Vancouver, BC",
+          "notes": "Central downtown location"
+        },
+        {
+          "id": "van-delta-suites",
+          "name": "Delta Hotels Vancouver Downtown Suites",
+          "segment": "upscale",
+          "proximity": "near",
+          "address": "550 W Hastings St, Vancouver, BC",
+          "notes": "Downtown business district"
+        },
+        {
+          "id": "van-pinnacle-harbourfront",
+          "name": "Pinnacle Hotel Harbourfront",
+          "segment": "upscale",
+          "proximity": "medium",
+          "address": "1133 W Hastings St, Vancouver, BC",
+          "notes": "Coal Harbour waterfront"
+        },
+        {
+          "id": "van-holiday-inn-downtown",
+          "name": "Holiday Inn Vancouver Downtown",
+          "segment": "midscale",
+          "proximity": "near",
+          "address": "1110 Howe St, Vancouver, BC",
+          "notes": "Downtown near Yaletown"
+        },
+        {
+          "id": "van-best-western-chateau",
+          "name": "Best Western Plus Chateau Granville",
+          "segment": "midscale",
+          "proximity": "near",
+          "address": "1100 Granville St, Vancouver, BC",
+          "notes": "Granville Street entertainment area"
+        },
+        {
+          "id": "van-sandman-downtown",
+          "name": "Sandman Hotel Vancouver Downtown",
+          "segment": "midscale",
+          "proximity": "medium",
+          "address": "180 W Georgia St, Vancouver, BC",
+          "notes": "Near Stadium-Chinatown station"
+        },
+        {
+          "id": "van-victorian-hotel",
+          "name": "Victorian Hotel",
+          "segment": "economy",
+          "proximity": "medium",
+          "address": "514 Homer St, Vancouver, BC",
+          "notes": "Heritage building, budget boutique"
+        },
+        {
+          "id": "van-ywca-hotel",
+          "name": "YWCA Hotel Vancouver",
+          "segment": "economy",
+          "proximity": "near",
+          "address": "733 Beatty St, Vancouver, BC",
+          "notes": "Budget option, very close to BC Place"
+        }
+      ]
+    }
+  },
+  "scrape_settings": {
+    "delay_min_seconds": 5,
+    "delay_max_seconds": 10,
+    "max_retries": 3,
+    "timeout_seconds": 30
+  }
+}

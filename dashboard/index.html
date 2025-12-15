@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PitchPrice - FIFA 2026 Hotel Rate Tracker</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>PitchPrice</h1>
+            <p class="subtitle">FIFA World Cup 2026 Hotel Rate Tracker</p>
+            <div class="data-freshness" id="data-freshness">
+                <span class="status-indicator"></span>
+                <span id="last-update">Loading...</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Filters Section -->
+        <section class="filters-section">
+            <div class="filter-group">
+                <label for="city-filter">City</label>
+                <select id="city-filter">
+                    <option value="all">All Cities</option>
+                    <option value="toronto">Toronto</option>
+                    <option value="vancouver">Vancouver</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="segment-filter">Market Segment</label>
+                <select id="segment-filter">
+                    <option value="all">All Segments</option>
+                    <option value="luxury">Luxury</option>
+                    <option value="upscale">Upscale</option>
+                    <option value="midscale">Midscale</option>
+                    <option value="economy">Economy</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="proximity-filter">Stadium Proximity</label>
+                <select id="proximity-filter">
+                    <option value="all">All Distances</option>
+                    <option value="near">Near</option>
+                    <option value="medium">Medium</option>
+                    <option value="far">Far</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Summary Cards -->
+        <section class="summary-section">
+            <div class="summary-card">
+                <h3>Average Rate</h3>
+                <div class="summary-value" id="avg-rate">--</div>
+                <div class="summary-label">CAD/night</div>
+            </div>
+            <div class="summary-card">
+                <h3>Lowest Rate</h3>
+                <div class="summary-value" id="min-rate">--</div>
+                <div class="summary-label">CAD/night</div>
+            </div>
+            <div class="summary-card">
+                <h3>Highest Rate</h3>
+                <div class="summary-value" id="max-rate">--</div>
+                <div class="summary-label">CAD/night</div>
+            </div>
+            <div class="summary-card">
+                <h3>Hotels Tracked</h3>
+                <div class="summary-value" id="hotels-count">--</div>
+                <div class="summary-label">properties</div>
+            </div>
+        </section>
+
+        <!-- Rate Evolution Chart -->
+        <section class="chart-section">
+            <div class="chart-header">
+                <h2>Rate Evolution Over Time</h2>
+                <p class="chart-description">Track how hotel rates change as the event approaches. Vertical lines indicate game dates.</p>
+            </div>
+            <div class="chart-container">
+                <canvas id="rate-evolution-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Comparison Chart -->
+        <section class="chart-section">
+            <div class="chart-header">
+                <h2>Hotel Rate Comparison</h2>
+                <p class="chart-description">Compare current rates across hotels, grouped by market segment.</p>
+            </div>
+            <div class="chart-container">
+                <canvas id="comparison-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Lead Time Analysis -->
+        <section class="chart-section">
+            <div class="chart-header">
+                <h2>Lead-Time Analysis</h2>
+                <p class="chart-description">How rates change as game dates approach. X-axis shows days until the nearest game.</p>
+            </div>
+            <div class="chart-container">
+                <canvas id="lead-time-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Availability Table -->
+        <section class="table-section">
+            <div class="chart-header">
+                <h2>Availability Status</h2>
+                <p class="chart-description">Current availability status for each hotel on game dates.</p>
+            </div>
+            <div class="table-container">
+                <table id="availability-table">
+                    <thead>
+                        <tr>
+                            <th>Hotel</th>
+                            <th>City</th>
+                            <th>Segment</th>
+                            <th>Game Dates Availability</th>
+                            <th>Latest Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="availability-tbody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section class="about-section">
+            <h2>About PitchPrice</h2>
+            <p>
+                PitchPrice tracks hotel room rates in Toronto and Vancouver for the
+                FIFA World Cup 2026 game dates. Data is collected twice weekly from
+                Google Hotels and displayed here to help travelers understand pricing
+                trends and find the best deals.
+            </p>
+            <div class="game-dates-info">
+                <div class="city-dates">
+                    <h4>Toronto Game Dates</h4>
+                    <ul id="toronto-game-dates"></ul>
+                </div>
+                <div class="city-dates">
+                    <h4>Vancouver Game Dates</h4>
+                    <ul id="vancouver-game-dates"></ul>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 PitchPrice. Data collected from Google Hotels.</p>
+            <p><a href="https://github.com/YOUR_USERNAME/PitchPrice" target="_blank">View on GitHub</a></p>
+        </div>
+    </footer>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
