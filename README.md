@@ -2,11 +2,13 @@
 
 FIFA World Cup 2026 Hotel Rate Tracker for Toronto and Vancouver.
 
+**[View Live Dashboard](https://mcleblanc711.github.io/PitchPrice/dashboard/)**
+
 ## Overview
 
 PitchPrice tracks hotel room rates for the FIFA World Cup 2026 game dates in Toronto and Vancouver. The tool consists of two components:
 
-1. **Scraper**: Automated Python script that collects hotel rates from Google Hotels
+1. **Scraper**: Automated Python script that collects hotel rates from Booking.com
 2. **Dashboard**: Static web visualization hosted on GitHub Pages
 
 ## Features
@@ -62,7 +64,7 @@ PitchPrice/
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/PitchPrice.git
+   git clone https://github.com/mcleblanc711/PitchPrice.git
    cd PitchPrice
    ```
 
