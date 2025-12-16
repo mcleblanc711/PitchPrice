@@ -52,9 +52,7 @@ scraper/*.png
 scraper/test_*.py
 scraper/test_*.html
 
-# Scrape data (generated during runs, keep .gitkeep)
-data/scrapes/*.json
-data/scrapes/**/*.json
+# Scrape data - committed to repo for dashboard
 
 # Claude Code
 .claude/
