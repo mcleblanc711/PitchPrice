@@ -28,6 +28,34 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 from playwright_stealth import stealth_sync
 
 
+class BrowserCorruptionError(Exception):
+    """Raised when browser/context is corrupted and needs restart."""
+    pass
+
+
+def is_browser_corruption_error(error: Exception) -> bool:
+    """Check if an exception indicates browser/context corruption."""
+    error_str = str(error).lower()
+    error_type = type(error).__name__
+
+    corruption_indicators = [
+        "'dict' object has no attribute '_object'",
+        "object has been collected",
+        "target page, context or browser has been closed",
+        "browser has been closed",
+        "context has been closed",
+        "page has been closed",
+        "connection closed",
+        "target closed",
+    ]
+
+    for indicator in corruption_indicators:
+        if indicator.lower() in error_str.lower():
+            return True
+
+    return False
+
+
 # Paths
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -455,6 +483,12 @@ def fetch_booking_rate(page, hotel_name: str, city_name: str, check_in: str, che
         except Exception as e:
             last_error = e
             logger.warning(f"Error on attempt {attempt}/{max_retries} for {hotel_name}: {type(e).__name__}: {e}")
+
+            # Check if this is a browser corruption error - don't retry, need context refresh
+            if is_browser_corruption_error(e):
+                logger.error(f"Browser corruption detected for {hotel_name}, need context refresh")
+                raise BrowserCorruptionError(f"Browser corrupted: {type(e).__name__}: {e}") from e
+
             if attempt < max_retries:
                 backoff = 2 * attempt
                 logger.debug(f"Backing off {backoff}s before retry")
@@ -761,7 +795,8 @@ def run_scraper(cities: list[str] = None, event_id: str = "fifa_2026", dry_run: 
         return
 
     # Memory management: refresh context every N hotels
-    REQUESTS_BEFORE_CONTEXT_REFRESH = 5  # Reduced from 10 to 5 for better memory management
+    # Reduced to 3 for aggressive memory management after corruption issues
+    REQUESTS_BEFORE_CONTEXT_REFRESH = 3
     request_count = 0
 
     with sync_playwright() as p:
@@ -852,7 +887,54 @@ def run_scraper(cities: list[str] = None, event_id: str = "fifa_2026", dry_run: 
                     time.sleep(2)  # Give browser time to stabilize
 
                 for check_in in dates:
-                    result = scrape_hotel_rate(page, hotel, city_name, city_config, event_info, check_in)
+                    # Retry loop for browser corruption recovery
+                    max_corruption_retries = 2
+                    for corruption_retry in range(max_corruption_retries + 1):
+                        try:
+                            result = scrape_hotel_rate(page, hotel, city_name, city_config, event_info, check_in)
+                            break  # Success, exit retry loop
+                        except BrowserCorruptionError as e:
+                            if corruption_retry < max_corruption_retries:
+                                logger.warning(f"Browser corruption on {hotel['name']} {check_in}, refreshing browser (attempt {corruption_retry + 1}/{max_corruption_retries})")
+                                # Close and restart everything
+                                try:
+                                    context.close()
+                                except Exception:
+                                    pass
+                                try:
+                                    browser.close()
+                                except Exception:
+                                    pass
+                                time.sleep(2)
+                                browser = launch_browser()
+                                context, page = create_fresh_context()
+                                logger.info("Browser restarted after corruption")
+                                time.sleep(2)
+                            else:
+                                # Exhausted retries, record error
+                                logger.error(f"Browser corruption persists for {hotel['name']} {check_in} after {max_corruption_retries} restarts")
+                                result = {
+                                    "hotel_id": hotel["id"],
+                                    "hotel_name": hotel["name"],
+                                    "city": city_name,
+                                    "segment": hotel["segment"],
+                                    "venue_proximity": hotel.get("venue_proximity", hotel.get("proximity")),
+                                    "proximity": hotel.get("venue_proximity", hotel.get("proximity")),
+                                    "check_in_date": check_in,
+                                    "check_out_date": (datetime.strptime(check_in, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"),
+                                    "rate": None,
+                                    "currency": "CAD",
+                                    "availability_status": "error",
+                                    "scrape_timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                                    "error": str(e),
+                                    "event_id": event_info.get("event_id"),
+                                    "event_type": event_info.get("event_type"),
+                                    "city_type": city_config.get("city_type", "event_host"),
+                                    "control_for": city_config.get("control_for"),
+                                    "days_to_event": None,
+                                    "nearest_event_date": None
+                                }
+
                     all_results.append(result)
 
                     if result["error"]:
