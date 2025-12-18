@@ -5,6 +5,8 @@
 
 // Configuration - will be loaded from config file
 let CONFIG = null;
+let CITIES_CONFIG = null;  // Cities config extracted from events
+let EVENT_INFO = null;     // Event metadata
 let DATA = null;
 let CHARTS = {};
 
@@ -38,6 +40,12 @@ async function init() {
         const configResponse = await fetch('../config/hotels.json');
         CONFIG = await configResponse.json();
 
+        // Extract cities config (supports both new events-based and legacy schema)
+        extractCitiesConfig();
+
+        // Populate city filter dynamically
+        populateCityFilter();
+
         // Populate game dates in the About section
         populateGameDates();
 
@@ -47,12 +55,66 @@ async function init() {
         // Setup filters
         setupFilters();
 
+        // Populate date filter with available dates from data
+        populateDateFilter(getAllResults());
+
         // Initial render
         renderDashboard();
 
     } catch (error) {
         console.error('Failed to initialize dashboard:', error);
         showError('Failed to load dashboard. Please try refreshing the page.');
+    }
+}
+
+/**
+ * Extract cities config from the configuration (supports both new and legacy schema)
+ */
+function extractCitiesConfig() {
+    // New schema: events.{event_id}.cities
+    if (CONFIG.events && CONFIG.events.fifa_2026) {
+        CITIES_CONFIG = CONFIG.events.fifa_2026.cities;
+        EVENT_INFO = {
+            event_id: 'fifa_2026',
+            event_name: CONFIG.events.fifa_2026.name,
+            event_type: CONFIG.events.fifa_2026.event_type
+        };
+    }
+    // Legacy schema: cities at root level
+    else if (CONFIG.cities) {
+        CITIES_CONFIG = CONFIG.cities;
+        EVENT_INFO = {
+            event_id: 'fifa_2026',
+            event_name: 'FIFA World Cup 2026',
+            event_type: 'fifa'
+        };
+    }
+    else {
+        throw new Error('Invalid config format: no cities found');
+    }
+}
+
+/**
+ * Populate the city filter dropdown dynamically from config
+ */
+function populateCityFilter() {
+    const cityFilter = document.getElementById('city-filter');
+    if (!cityFilter || !CITIES_CONFIG) return;
+
+    // Clear existing options except "All Cities"
+    cityFilter.innerHTML = '<option value="all">All Cities</option>';
+
+    // Add cities from config
+    for (const [cityKey, cityConfig] of Object.entries(CITIES_CONFIG)) {
+        const cityType = cityConfig.city_type || 'event_host';
+        const label = cityType === 'control'
+            ? `${cityConfig.name} (Control)`
+            : cityConfig.name;
+
+        const option = document.createElement('option');
+        option.value = cityKey;
+        option.textContent = label;
+        cityFilter.appendChild(option);
     }
 }
 
@@ -129,14 +191,22 @@ function updateDataFreshness() {
  * Populate game dates in the About section
  */
 function populateGameDates() {
-    if (!CONFIG) return;
+    if (!CITIES_CONFIG) return;
 
-    for (const [cityKey, cityConfig] of Object.entries(CONFIG.cities)) {
+    for (const [cityKey, cityConfig] of Object.entries(CITIES_CONFIG)) {
         const listEl = document.getElementById(`${cityKey}-game-dates`);
         if (listEl) {
-            listEl.innerHTML = cityConfig.game_dates
-                .map(date => `<li>${formatGameDate(date)}</li>`)
-                .join('');
+            // Support both new (event_dates) and legacy (game_dates) schema
+            const eventDates = cityConfig.event_dates || cityConfig.game_dates || [];
+
+            if (eventDates.length === 0) {
+                // Control city - no game dates
+                listEl.innerHTML = '<li class="no-games">No event dates (control city)</li>';
+            } else {
+                listEl.innerHTML = eventDates
+                    .map(date => `<li>${formatGameDate(date)}</li>`)
+                    .join('');
+            }
         }
     }
 }
@@ -145,7 +215,7 @@ function populateGameDates() {
  * Setup filter event listeners
  */
 function setupFilters() {
-    const filters = ['city-filter', 'segment-filter', 'proximity-filter'];
+    const filters = ['city-filter', 'segment-filter', 'proximity-filter', 'city-type-filter'];
 
     filters.forEach(filterId => {
         const el = document.getElementById(filterId);
@@ -156,13 +226,91 @@ function setupFilters() {
 }
 
 /**
+ * Populate the date filter checkboxes dynamically from data
+ */
+function populateDateFilter(allResults) {
+    const container = document.getElementById('date-filter');
+    if (!container) return;
+
+    // Get unique check-in dates from data
+    const dates = [...new Set(allResults.map(r => r.check_in_date))].filter(Boolean).sort();
+
+    if (dates.length === 0) {
+        container.innerHTML = '<span style="color: var(--text-secondary); font-size: 0.8rem;">No dates available</span>';
+        return;
+    }
+
+    // Get event dates from config for highlighting (only from event host cities)
+    let gameDates = [];
+    if (CITIES_CONFIG) {
+        for (const cityConfig of Object.values(CITIES_CONFIG)) {
+            if (cityConfig.city_type !== 'control') {
+                const eventDates = cityConfig.event_dates || cityConfig.game_dates || [];
+                gameDates.push(...eventDates);
+            }
+        }
+    }
+    gameDates = [...new Set(gameDates)];
+
+    // Add All/None/Game Days controls
+    const controls = document.createElement('div');
+    controls.className = 'date-filter-controls';
+    controls.innerHTML = `
+        <button type="button" id="select-all-dates">All</button>
+        <button type="button" id="select-none-dates">None</button>
+        <button type="button" id="select-game-dates">Game Days</button>
+    `;
+    container.parentNode.insertBefore(controls, container);
+
+    // Render checkboxes
+    container.innerHTML = dates.map(date => {
+        const formatted = new Date(date + 'T00:00:00').toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric'
+        });
+        const isGameDate = gameDates.includes(date);
+        return `
+            <label class="date-checkbox-item${isGameDate ? ' game-date' : ''}">
+                <input type="checkbox" value="${date}" checked>
+                ${formatted}
+            </label>
+        `;
+    }).join('');
+
+    // Add event listeners for checkboxes
+    container.querySelectorAll('input').forEach(cb => {
+        cb.addEventListener('change', () => renderDashboard());
+    });
+
+    // Add event listeners for control buttons
+    document.getElementById('select-all-dates')?.addEventListener('click', () => {
+        container.querySelectorAll('input').forEach(cb => cb.checked = true);
+        renderDashboard();
+    });
+    document.getElementById('select-none-dates')?.addEventListener('click', () => {
+        container.querySelectorAll('input').forEach(cb => cb.checked = false);
+        renderDashboard();
+    });
+    document.getElementById('select-game-dates')?.addEventListener('click', () => {
+        container.querySelectorAll('input').forEach(cb => {
+            cb.checked = gameDates.includes(cb.value);
+        });
+        renderDashboard();
+    });
+}
+
+/**
  * Get current filter values
  */
 function getFilters() {
+    const dateCheckboxes = document.querySelectorAll('#date-filter input:checked');
+    const selectedDates = Array.from(dateCheckboxes).map(cb => cb.value);
+
     return {
         city: document.getElementById('city-filter')?.value || 'all',
+        cityType: document.getElementById('city-type-filter')?.value || 'all',
         segment: document.getElementById('segment-filter')?.value || 'all',
-        proximity: document.getElementById('proximity-filter')?.value || 'all'
+        proximity: document.getElementById('proximity-filter')?.value || 'all',
+        dates: selectedDates.length > 0 ? selectedDates : 'all'
     };
 }
 
@@ -176,10 +324,22 @@ function filterResults(results) {
         if (filters.city !== 'all' && result.city?.toLowerCase() !== filters.city) {
             return false;
         }
+        // Filter by city type (event_host or control)
+        if (filters.cityType !== 'all') {
+            const resultCityType = result.city_type || 'event_host';
+            if (resultCityType !== filters.cityType) {
+                return false;
+            }
+        }
         if (filters.segment !== 'all' && result.segment !== filters.segment) {
             return false;
         }
-        if (filters.proximity !== 'all' && result.proximity !== filters.proximity) {
+        // Support both venue_proximity (new) and proximity (legacy)
+        const resultProximity = result.venue_proximity || result.proximity;
+        if (filters.proximity !== 'all' && resultProximity !== filters.proximity) {
+            return false;
+        }
+        if (filters.dates !== 'all' && !filters.dates.includes(result.check_in_date)) {
             return false;
         }
         return true;
@@ -193,17 +353,28 @@ function getFilteredHotels() {
     const filters = getFilters();
     let hotels = [];
 
-    for (const [cityKey, cityConfig] of Object.entries(CONFIG.cities)) {
+    if (!CITIES_CONFIG) return hotels;
+
+    for (const [cityKey, cityConfig] of Object.entries(CITIES_CONFIG)) {
         if (filters.city !== 'all' && cityKey !== filters.city) continue;
+
+        // Filter by city type
+        const cityType = cityConfig.city_type || 'event_host';
+        if (filters.cityType !== 'all' && cityType !== filters.cityType) continue;
 
         for (const hotel of cityConfig.hotels) {
             if (filters.segment !== 'all' && hotel.segment !== filters.segment) continue;
-            if (filters.proximity !== 'all' && hotel.proximity !== filters.proximity) continue;
+            // Support both venue_proximity (new) and proximity (legacy)
+            const hotelProximity = hotel.venue_proximity || hotel.proximity;
+            if (filters.proximity !== 'all' && hotelProximity !== filters.proximity) continue;
 
             hotels.push({
                 ...hotel,
                 cityKey,
-                cityName: cityConfig.name
+                cityName: cityConfig.name,
+                cityType: cityType,
+                // Normalize proximity field name
+                proximity: hotelProximity
             });
         }
     }
@@ -241,6 +412,8 @@ function renderDashboard() {
     updateSummaryCards(filteredResults);
     renderRateEvolutionChart(filteredResults);
     renderComparisonChart(filteredResults);
+    renderLeadTimeCurvesChart(allResults);  // Use all results for city comparison
+    renderEventPremiumChart(allResults);     // Use all results for control comparison
     renderLeadTimeChart(filteredResults);
     renderAvailabilityTable(filteredResults);
 }
@@ -249,28 +422,58 @@ function renderDashboard() {
  * Update summary cards
  */
 function updateSummaryCards(results) {
-    const rates = results
-        .filter(r => r.rate && r.rate > 0)
-        .map(r => r.rate);
+    const resultsWithRates = results.filter(r => r.rate && r.rate > 0);
+
+    const rates = resultsWithRates.map(r => r.rate);
 
     const avgRate = rates.length > 0
         ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length)
         : '--';
 
-    const minRate = rates.length > 0
-        ? Math.min(...rates)
-        : '--';
+    // Find min and max records (not just values)
+    let minRecord = null;
+    let maxRecord = null;
 
-    const maxRate = rates.length > 0
-        ? Math.max(...rates)
-        : '--';
+    if (resultsWithRates.length > 0) {
+        minRecord = resultsWithRates.reduce((min, r) => r.rate < min.rate ? r : min);
+        maxRecord = resultsWithRates.reduce((max, r) => r.rate > max.rate ? r : max);
+    }
 
     const hotels = getFilteredHotels();
 
+    // Update values
     document.getElementById('avg-rate').textContent = avgRate !== '--' ? `$${avgRate}` : '--';
-    document.getElementById('min-rate').textContent = minRate !== '--' ? `$${minRate}` : '--';
-    document.getElementById('max-rate').textContent = maxRate !== '--' ? `$${maxRate}` : '--';
+    document.getElementById('min-rate').textContent = minRecord ? `$${minRecord.rate}` : '--';
+    document.getElementById('max-rate').textContent = maxRecord ? `$${maxRecord.rate}` : '--';
     document.getElementById('hotels-count').textContent = hotels.length;
+
+    // Update context for min rate
+    const minContext = document.getElementById('min-rate-context');
+    if (minContext && minRecord) {
+        const minDate = new Date(minRecord.check_in_date + 'T00:00:00').toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric'
+        });
+        minContext.innerHTML = `
+            <span class="hotel-name">${minRecord.hotel_name}</span><br>
+            <span class="date-info">${minDate}</span>
+        `;
+    } else if (minContext) {
+        minContext.innerHTML = '';
+    }
+
+    // Update context for max rate
+    const maxContext = document.getElementById('max-rate-context');
+    if (maxContext && maxRecord) {
+        const maxDate = new Date(maxRecord.check_in_date + 'T00:00:00').toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric'
+        });
+        maxContext.innerHTML = `
+            <span class="hotel-name">${maxRecord.hotel_name}</span><br>
+            <span class="date-info">${maxDate}</span>
+        `;
+    } else if (maxContext) {
+        maxContext.innerHTML = '';
+    }
 }
 
 /**
@@ -327,16 +530,20 @@ function renderRateEvolutionChart(results) {
             pointHoverRadius: 6
         }));
 
-    // Get game dates for annotations
+    // Get event dates for annotations (only from event host cities)
     const filters = getFilters();
     let gameDates = [];
 
     if (filters.city === 'all') {
-        for (const cityConfig of Object.values(CONFIG.cities)) {
-            gameDates.push(...cityConfig.game_dates);
+        for (const cityConfig of Object.values(CITIES_CONFIG || {})) {
+            if (cityConfig.city_type !== 'control') {
+                const eventDates = cityConfig.event_dates || cityConfig.game_dates || [];
+                gameDates.push(...eventDates);
+            }
         }
     } else {
-        gameDates = CONFIG.cities[filters.city]?.game_dates || [];
+        const cityConfig = CITIES_CONFIG?.[filters.city];
+        gameDates = cityConfig?.event_dates || cityConfig?.game_dates || [];
     }
 
     gameDates = [...new Set(gameDates)].sort();
@@ -488,6 +695,278 @@ function renderComparisonChart(results) {
 }
 
 /**
+ * Render the lead-time pricing curves chart (Hero Chart)
+ * Shows indexed rates by city over days to event
+ */
+function renderLeadTimeCurvesChart(results) {
+    const ctx = document.getElementById('lead-time-curves-chart');
+    if (!ctx) return;
+
+    if (CHARTS.leadTimeCurves) {
+        CHARTS.leadTimeCurves.destroy();
+    }
+
+    if (results.length === 0) {
+        showNoData(ctx, 'No data available for lead-time analysis');
+        return;
+    }
+
+    // Group results by city
+    const cityData = {};
+    const cityColors = {
+        'Toronto': '#58a6ff',
+        'Vancouver': '#3fb950',
+        'Montreal': '#d29922'
+    };
+
+    // Calculate baseline rates (first observation per hotel)
+    const baselineRates = {};
+    for (const result of results) {
+        if (!result.rate || !result.hotel_id) continue;
+        const key = result.hotel_id;
+        if (!baselineRates[key] || result.scrape_date < baselineRates[key].scrape_date) {
+            baselineRates[key] = { rate: result.rate, scrape_date: result.scrape_date };
+        }
+    }
+
+    // Calculate indexed rates and group by city and days_to_event
+    for (const result of results) {
+        if (!result.rate || !result.city) continue;
+
+        const cityName = result.city;
+        if (!cityData[cityName]) {
+            cityData[cityName] = {};
+        }
+
+        // Use days_to_event from result, or calculate if not present
+        let daysToEvent = result.days_to_event;
+        if (daysToEvent === undefined || daysToEvent === null) {
+            // Skip if we can't calculate days to event
+            continue;
+        }
+
+        // Calculate indexed rate (100 = baseline)
+        const baseline = baselineRates[result.hotel_id];
+        const indexedRate = baseline ? (result.rate / baseline.rate * 100) : 100;
+
+        if (!cityData[cityName][daysToEvent]) {
+            cityData[cityName][daysToEvent] = [];
+        }
+        cityData[cityName][daysToEvent].push(indexedRate);
+    }
+
+    // Average indexed rates per city per days_to_event
+    const datasets = [];
+    for (const [cityName, dayData] of Object.entries(cityData)) {
+        const points = [];
+        for (const [days, rates] of Object.entries(dayData)) {
+            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+            points.push({ x: parseInt(days), y: avgRate });
+        }
+        // Sort by days to event
+        points.sort((a, b) => b.x - a.x);
+
+        if (points.length > 0) {
+            datasets.push({
+                label: cityName,
+                data: points,
+                borderColor: cityColors[cityName] || '#8b949e',
+                backgroundColor: (cityColors[cityName] || '#8b949e') + '20',
+                tension: 0.3,
+                fill: false,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                borderWidth: cityName === 'Montreal' ? 2 : 3,
+                borderDash: cityName === 'Montreal' ? [5, 5] : []
+            });
+        }
+    }
+
+    if (datasets.length === 0) {
+        showNoData(ctx, 'No lead-time data available');
+        return;
+    }
+
+    CHARTS.leadTimeCurves = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: {
+                        display: true,
+                        text: 'Days to Event (T-60 to T-0)'
+                    },
+                    reverse: true,
+                    min: -5,
+                    max: 60
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Indexed Rate (100 = baseline)'
+                    },
+                    beginAtZero: false,
+                    suggestedMin: 80,
+                    suggestedMax: 150
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            return `${context.dataset.label}: ${context.raw.y.toFixed(1)} (${context.raw.x} days out)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Render the event premium chart
+ * Shows difference between event host cities and Montreal control
+ */
+function renderEventPremiumChart(results) {
+    const ctx = document.getElementById('event-premium-chart');
+    if (!ctx) return;
+
+    if (CHARTS.eventPremium) {
+        CHARTS.eventPremium.destroy();
+    }
+
+    if (results.length === 0) {
+        showNoData(ctx, 'No data available for event premium analysis');
+        return;
+    }
+
+    // Group results by city and segment
+    const citySegmentRates = {};
+
+    for (const result of results) {
+        if (!result.rate || !result.city || !result.segment) continue;
+
+        const cityType = result.city_type || (result.city === 'Montreal' ? 'control' : 'event_host');
+        const key = `${result.city}-${result.segment}`;
+
+        if (!citySegmentRates[key]) {
+            citySegmentRates[key] = {
+                city: result.city,
+                segment: result.segment,
+                cityType: cityType,
+                rates: []
+            };
+        }
+        citySegmentRates[key].rates.push(result.rate);
+    }
+
+    // Calculate average rates per city/segment
+    const avgRates = {};
+    for (const [key, data] of Object.entries(citySegmentRates)) {
+        avgRates[key] = {
+            ...data,
+            avgRate: data.rates.reduce((a, b) => a + b, 0) / data.rates.length
+        };
+    }
+
+    // Get Montreal control rates by segment
+    const montrealRates = {};
+    for (const segment of ['luxury', 'upscale', 'midscale', 'economy']) {
+        const key = `Montreal-${segment}`;
+        if (avgRates[key]) {
+            montrealRates[segment] = avgRates[key].avgRate;
+        }
+    }
+
+    // Calculate premium for each event host city/segment
+    const labels = [];
+    const premiumData = [];
+    const percentPremiumData = [];
+    const colors = [];
+
+    const segmentColors = {
+        luxury: '#a371f7',
+        upscale: '#58a6ff',
+        midscale: '#3fb950',
+        economy: '#d29922'
+    };
+
+    for (const [key, data] of Object.entries(avgRates)) {
+        if (data.cityType === 'control') continue; // Skip Montreal
+
+        const controlRate = montrealRates[data.segment];
+        if (!controlRate) continue;
+
+        const premium = data.avgRate - controlRate;
+        const percentPremium = ((data.avgRate / controlRate) - 1) * 100;
+
+        labels.push(`${data.city} ${data.segment.charAt(0).toUpperCase() + data.segment.slice(1)}`);
+        premiumData.push(premium);
+        percentPremiumData.push(percentPremium);
+        colors.push(segmentColors[data.segment] || '#8b949e');
+    }
+
+    if (labels.length === 0) {
+        showNoData(ctx, 'No comparison data available (need both event host and control city data)');
+        return;
+    }
+
+    CHARTS.eventPremium = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Premium vs Montreal ($)',
+                data: premiumData,
+                backgroundColor: colors,
+                borderColor: colors.map(c => c + 'ff'),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Premium vs Montreal Control (CAD)'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const idx = context.dataIndex;
+                            const premium = premiumData[idx];
+                            const percent = percentPremiumData[idx];
+                            const sign = premium >= 0 ? '+' : '';
+                            return `${sign}$${premium.toFixed(0)} (${sign}${percent.toFixed(1)}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
  * Render the lead-time analysis chart
  */
 function renderLeadTimeChart(results) {
@@ -503,16 +982,20 @@ function renderLeadTimeChart(results) {
         return;
     }
 
-    // Get all game dates
+    // Get all event dates (only from event host cities)
     const filters = getFilters();
     let gameDates = [];
 
     if (filters.city === 'all') {
-        for (const cityConfig of Object.values(CONFIG.cities)) {
-            gameDates.push(...cityConfig.game_dates);
+        for (const cityConfig of Object.values(CITIES_CONFIG || {})) {
+            if (cityConfig.city_type !== 'control') {
+                const eventDates = cityConfig.event_dates || cityConfig.game_dates || [];
+                gameDates.push(...eventDates);
+            }
         }
     } else {
-        gameDates = CONFIG.cities[filters.city]?.game_dates || [];
+        const cityConfig = CITIES_CONFIG?.[filters.city];
+        gameDates = cityConfig?.event_dates || cityConfig?.game_dates || [];
     }
 
     gameDates = [...new Set(gameDates)].map(d => new Date(d));
@@ -621,10 +1104,10 @@ function renderAvailabilityTable(results) {
         return;
     }
 
-    // Get game dates per city
+    // Get event dates per city (only for event host cities)
     const gameDatesByCity = {};
-    for (const [cityKey, cityConfig] of Object.entries(CONFIG.cities)) {
-        gameDatesByCity[cityKey] = cityConfig.game_dates;
+    for (const [cityKey, cityConfig] of Object.entries(CITIES_CONFIG || {})) {
+        gameDatesByCity[cityKey] = cityConfig.event_dates || cityConfig.game_dates || [];
     }
 
     // Get latest results per hotel/date combo

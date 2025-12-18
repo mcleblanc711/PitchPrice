@@ -7,13 +7,17 @@ in Toronto and Vancouver.
 """
 
 import json
+import logging
 import os
 import random
 import re
 import sys
 import time
+import traceback
 import warnings
+from collections import Counter
 from datetime import datetime, timedelta, timezone
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -29,12 +33,115 @@ SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 CONFIG_PATH = PROJECT_ROOT / "config" / "hotels.json"
 DATA_DIR = PROJECT_ROOT / "data" / "scrapes"
+LOG_DIR = SCRIPT_DIR / "logs"
+
+# Ensure log directory exists
+LOG_DIR.mkdir(exist_ok=True)
+
+# Configure logging
+logger = logging.getLogger("pitchprice")
+logger.setLevel(logging.DEBUG)
+
+# File handler with rotation (5 MB, 5 backups)
+file_handler = RotatingFileHandler(
+    LOG_DIR / "scraper.log",
+    maxBytes=5 * 1024 * 1024,
+    backupCount=5
+)
+file_handler.setLevel(logging.DEBUG)
+file_formatter = logging.Formatter(
+    '%(asctime)s - %(levelname)s - %(message)s'
+)
+file_handler.setFormatter(file_formatter)
+
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_formatter = logging.Formatter(
+    '%(asctime)s - %(levelname)s - %(message)s'
+)
+console_handler.setFormatter(console_formatter)
+
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 
 def load_config():
     """Load the hotels configuration file."""
     with open(CONFIG_PATH, "r") as f:
         return json.load(f)
+
+
+def get_event_cities(config: dict, event_id: str = "fifa_2026") -> dict:
+    """
+    Get cities configuration for an event.
+
+    Supports both new events-based schema and legacy flat schema for backwards compatibility.
+
+    Args:
+        config: The full config dict
+        event_id: Event identifier (default: fifa_2026)
+
+    Returns:
+        Dict of city configurations
+    """
+    # New schema: events.{event_id}.cities
+    if "events" in config and event_id in config["events"]:
+        return config["events"][event_id]["cities"]
+    # Legacy schema: cities at root level
+    elif "cities" in config:
+        return config["cities"]
+    else:
+        raise ValueError("Invalid config format: no cities found")
+
+
+def get_event_info(config: dict, event_id: str = "fifa_2026") -> dict:
+    """Get event metadata."""
+    if "events" in config and event_id in config["events"]:
+        event = config["events"][event_id]
+        return {
+            "event_id": event_id,
+            "event_name": event.get("name"),
+            "event_type": event.get("event_type", "unknown")
+        }
+    return {
+        "event_id": event_id,
+        "event_name": "Unknown Event",
+        "event_type": "unknown"
+    }
+
+
+def calculate_days_to_event(check_in_date: str, event_dates: list) -> dict:
+    """
+    Calculate days to nearest event date.
+
+    Args:
+        check_in_date: Check-in date in YYYY-MM-DD format
+        event_dates: List of event dates in YYYY-MM-DD format
+
+    Returns:
+        Dict with days_to_event and nearest_event_date
+    """
+    if not event_dates:
+        return {"days_to_event": None, "nearest_event_date": None}
+
+    check_in = datetime.strptime(check_in_date, "%Y-%m-%d")
+
+    # Find the nearest event date
+    nearest = None
+    min_days = float('inf')
+
+    for event_date in event_dates:
+        event_dt = datetime.strptime(event_date, "%Y-%m-%d")
+        days = (event_dt - check_in).days
+        if abs(days) < abs(min_days):
+            min_days = days
+            nearest = event_date
+
+    return {
+        "days_to_event": min_days,
+        "nearest_event_date": nearest
+    }
 
 
 def generate_dates(start_date: str, end_date: str) -> list[str]:
@@ -81,24 +188,78 @@ def build_booking_url(hotel_name: str, city: str, check_in: str, check_out: str)
 
 def dismiss_cookie_popup(page):
     """Dismiss Booking.com cookie consent popup if present."""
+    cookie_selectors = [
+        'button:has-text("Accept")',
+        'button:has-text("OK")',
+        '#onetrust-accept-btn-handler',
+        '[data-testid="accept-btn"]',
+    ]
+    for selector in cookie_selectors:
+        try:
+            btn = page.locator(selector).first
+            if btn.is_visible(timeout=2000):
+                btn.click()
+                time.sleep(0.5)
+                logger.debug(f"Dismissed cookie popup using selector: {selector}")
+                return True
+        except PlaywrightTimeout:
+            logger.debug(f"Cookie selector {selector} timed out")
+            continue
+        except Exception as e:
+            logger.debug(f"Cookie dismiss failed with {selector}: {type(e).__name__}: {e}")
+            continue
+    return False
+
+
+def capture_page_diagnostics(page, hotel_name: str, context: str) -> dict:
+    """Capture diagnostic information from a page for debugging."""
+    diagnostics = {
+        "context": context,
+        "hotel": hotel_name,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
     try:
-        cookie_selectors = [
-            'button:has-text("Accept")',
-            'button:has-text("OK")',
-            '#onetrust-accept-btn-handler',
-            '[data-testid="accept-btn"]',
-        ]
-        for selector in cookie_selectors:
-            try:
-                btn = page.locator(selector).first
-                if btn.is_visible(timeout=2000):
-                    btn.click()
-                    time.sleep(0.5)
-                    return
-            except:
-                continue
-    except:
-        pass
+        diagnostics["page_title"] = page.title()
+    except Exception:
+        diagnostics["page_title"] = "Error getting title"
+
+    try:
+        diagnostics["page_url"] = page.url
+    except Exception:
+        diagnostics["page_url"] = "Error getting URL"
+
+    try:
+        property_cards = page.locator('[data-testid="property-card"]').count()
+        diagnostics["property_card_count"] = property_cards
+    except Exception:
+        diagnostics["property_card_count"] = -1
+
+    try:
+        page_text = page.inner_text("body", timeout=5000)
+        all_prices = re.findall(r'(?:CA\$|CAD|C\$)\s*([\d,]+)', page_text)
+        diagnostics["all_prices_found"] = [int(p.replace(',', '')) for p in all_prices[:20]]
+    except Exception:
+        diagnostics["all_prices_found"] = []
+
+    try:
+        body_text = page.inner_text("body", timeout=5000).lower()
+        diagnostics["has_no_availability"] = "no availability" in body_text
+        diagnostics["has_sold_out"] = "sold out" in body_text
+        diagnostics["has_captcha"] = "captcha" in body_text or "verify" in body_text
+    except Exception:
+        diagnostics["has_no_availability"] = None
+        diagnostics["has_sold_out"] = None
+        diagnostics["has_captcha"] = None
+
+    return diagnostics
+
+
+def format_exception(e: Exception) -> str:
+    """Format exception with type and traceback for logging."""
+    exc_type = type(e).__name__
+    exc_tb = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+    return f"{exc_type}: {e}\nTraceback:\n{exc_tb}"
 
 
 def extract_rate_from_booking(page, hotel_name: str, num_nights: int = 1) -> dict:
@@ -164,7 +325,6 @@ def extract_rate_from_booking(page, hotel_name: str, num_nights: int = 1) -> dic
 
                     # Look for the most commonly appearing price (standard rate)
                     # Special deals usually appear once, standard rate appears multiple times
-                    from collections import Counter
                     price_counts = Counter(prices_int)
 
                     if num_nights == 1:
@@ -220,19 +380,27 @@ def extract_rate_from_booking(page, hotel_name: str, num_nights: int = 1) -> dic
                 result["availability_status"] = "not_found"
                 result["error"] = "Hotel not found in results"
 
-    except PlaywrightTimeout:
+    except PlaywrightTimeout as e:
+        diagnostics = capture_page_diagnostics(page, hotel_name, "extraction_timeout")
+        logger.error(f"Timeout extracting rate for {hotel_name}")
+        logger.debug(f"Timeout diagnostics: {diagnostics}")
         result["error"] = "Page load timeout"
         result["availability_status"] = "error"
+        result["diagnostics"] = diagnostics
     except Exception as e:
-        result["error"] = str(e)
+        diagnostics = capture_page_diagnostics(page, hotel_name, "extraction_error")
+        logger.error(f"Error extracting rate for {hotel_name}: {type(e).__name__}: {e}")
+        logger.debug(f"Error diagnostics: {diagnostics}")
+        result["error"] = f"{type(e).__name__}: {e}"
         result["availability_status"] = "error"
+        result["diagnostics"] = diagnostics
 
     return result
 
 
-def fetch_booking_rate(page, hotel_name: str, city_name: str, check_in: str, check_out: str) -> dict:
+def fetch_booking_rate(page, hotel_name: str, city_name: str, check_in: str, check_out: str, max_retries: int = 3) -> dict:
     """
-    Fetch rate from Booking.com for a specific date range.
+    Fetch rate from Booking.com for a specific date range with retry support.
 
     Returns:
         Dict with rate (TOTAL for the stay) and availability_status
@@ -244,16 +412,61 @@ def fetch_booking_rate(page, hotel_name: str, city_name: str, check_in: str, che
     check_out_dt = datetime.strptime(check_out, "%Y-%m-%d")
     num_nights = (check_out_dt - check_in_dt).days
 
-    try:
-        page.goto(url, wait_until="domcontentloaded", timeout=60000)
-        time.sleep(4)
-        page.wait_for_load_state("networkidle", timeout=30000)
-        time.sleep(1)
+    last_error = None
 
-        return extract_rate_from_booking(page, hotel_name, num_nights)
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.debug(f"Attempt {attempt}/{max_retries}: {hotel_name} {check_in}")
 
-    except Exception as e:
-        return {"rate": None, "availability_status": "error", "error": str(e)}
+            response = page.goto(url, wait_until="domcontentloaded", timeout=60000)
+
+            # Capture HTTP status for diagnostics
+            http_status = response.status if response else None
+            logger.debug(f"HTTP status: {http_status} for {hotel_name}")
+
+            if http_status and http_status >= 400:
+                logger.warning(f"HTTP {http_status} for {hotel_name} on attempt {attempt}")
+
+            time.sleep(4)
+            page.wait_for_load_state("networkidle", timeout=30000)
+            time.sleep(1)
+
+            result = extract_rate_from_booking(page, hotel_name, num_nights)
+
+            # If successful extraction, return
+            if result.get("rate") is not None or result.get("availability_status") in ["sold_out", "not_found"]:
+                if attempt > 1:
+                    logger.info(f"Succeeded on attempt {attempt} for {hotel_name}")
+                return result
+
+            # If error but not a hard failure, might want to retry
+            if result.get("availability_status") == "error":
+                raise Exception(result.get("error", "Unknown extraction error"))
+
+            return result
+
+        except PlaywrightTimeout as e:
+            last_error = e
+            logger.warning(f"Timeout on attempt {attempt}/{max_retries} for {hotel_name}: {e}")
+            if attempt < max_retries:
+                backoff = 2 * attempt
+                logger.debug(f"Backing off {backoff}s before retry")
+                time.sleep(backoff)
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Error on attempt {attempt}/{max_retries} for {hotel_name}: {type(e).__name__}: {e}")
+            if attempt < max_retries:
+                backoff = 2 * attempt
+                logger.debug(f"Backing off {backoff}s before retry")
+                time.sleep(backoff)
+
+    # All retries exhausted
+    logger.error(f"Failed after {max_retries} attempts for {hotel_name}: {type(last_error).__name__}: {last_error}")
+    return {
+        "rate": None,
+        "availability_status": "error",
+        "error": f"Failed after {max_retries} attempts: {type(last_error).__name__}: {last_error}"
+    }
 
 
 def calculate_rate_from_multi_night(page, hotel: dict, city_name: str, target_date: str) -> dict:
@@ -289,7 +502,7 @@ def calculate_rate_from_multi_night(page, hotel: dict, city_name: str, target_da
 
     # Method 1: (Prev + Target) 2-night total minus Prev 1-night
     # e.g., (Fri+Sat) - Fri = Sat
-    print(f"    Trying 2-night calculation (prev+target)...")
+    logger.debug(f"Trying 2-night calculation (prev+target) for {hotel_name}")
 
     # Get 2-night rate: prev_day to next_day (2 nights)
     two_night_1 = fetch_booking_rate(page, hotel_name, city_name, prev_day, next_day)
@@ -303,9 +516,7 @@ def calculate_rate_from_multi_night(page, hotel: dict, city_name: str, target_da
     if two_night_1.get("rate") and one_night_prev.get("rate"):
         # Target rate = 2-night total - prev night rate
         calculated_rate_1 = two_night_1["rate"] - one_night_prev["rate"]
-        print(f"      2-night (prev+target): ${two_night_1['rate']}")
-        print(f"      1-night prev: ${one_night_prev['rate']}")
-        print(f"      Calculated target rate: ${calculated_rate_1}")
+        logger.debug(f"2-night (prev+target): ${two_night_1['rate']}, 1-night prev: ${one_night_prev['rate']}, Calculated: ${calculated_rate_1}")
         result["rate_calculation"] = {
             "method": "prev+target minus prev",
             "two_night_total": two_night_1["rate"],
@@ -315,7 +526,7 @@ def calculate_rate_from_multi_night(page, hotel: dict, city_name: str, target_da
 
     # Method 2: (Target + Next) 2-night total minus Next 1-night
     # e.g., (Sat+Sun) - Sun = Sat
-    print(f"    Verifying with 2-night calculation (target+next)...")
+    logger.debug(f"Verifying with 2-night calculation (target+next) for {hotel_name}")
 
     # Get 2-night rate: target_date to day_after_next (2 nights)
     two_night_2 = fetch_booking_rate(page, hotel_name, city_name, target_date, day_after_next)
@@ -329,9 +540,7 @@ def calculate_rate_from_multi_night(page, hotel: dict, city_name: str, target_da
     if two_night_2.get("rate") and one_night_next.get("rate"):
         # Target rate = 2-night total - next night rate
         calculated_rate_2 = two_night_2["rate"] - one_night_next["rate"]
-        print(f"      2-night (target+next): ${two_night_2['rate']}")
-        print(f"      1-night next: ${one_night_next['rate']}")
-        print(f"      Calculated target rate: ${calculated_rate_2}")
+        logger.debug(f"2-night (target+next): ${two_night_2['rate']}, 1-night next: ${one_night_next['rate']}, Calculated: ${calculated_rate_2}")
         result["verification"] = {
             "method": "target+next minus next",
             "two_night_total": two_night_2["rate"],
@@ -347,30 +556,30 @@ def calculate_rate_from_multi_night(page, hotel: dict, city_name: str, target_da
         if diff <= 50:  # Within $50 tolerance
             result["rate"] = int(round(avg))
             result["availability_status"] = "available_calculated"
-            print(f"      VERIFIED: Both methods agree (~${result['rate']})")
+            logger.debug(f"VERIFIED: Both methods agree (~${result['rate']}) for {hotel_name}")
         else:
             # Use the average but note discrepancy
             result["rate"] = int(round(avg))
             result["availability_status"] = "available_calculated"
             result["error"] = f"Calculation methods differ by ${diff}"
-            print(f"      WARNING: Methods differ by ${diff}, using average ${result['rate']}")
+            logger.warning(f"Methods differ by ${diff} for {hotel_name}, using average ${result['rate']}")
     elif calculated_rate_1:
         result["rate"] = calculated_rate_1
         result["availability_status"] = "available_calculated"
-        print(f"      Using first method: ${calculated_rate_1}")
+        logger.debug(f"Using first method: ${calculated_rate_1} for {hotel_name}")
     elif calculated_rate_2:
         result["rate"] = calculated_rate_2
         result["availability_status"] = "available_calculated"
-        print(f"      Using second method: ${calculated_rate_2}")
+        logger.debug(f"Using second method: ${calculated_rate_2} for {hotel_name}")
     else:
         result["error"] = "Could not calculate rate from multi-night bookings"
         result["availability_status"] = "not_found"
-        print(f"      ERROR: Could not calculate rate")
+        logger.warning(f"Could not calculate rate from multi-night bookings for {hotel_name}")
 
     return result
 
 
-def scrape_hotel_rate(page, hotel: dict, city_name: str, check_in: str) -> dict:
+def scrape_hotel_rate(page, hotel: dict, city_name: str, city_config: dict, event_info: dict, check_in: str) -> dict:
     """
     Scrape the rate for a single hotel on a single date from Booking.com.
 
@@ -381,6 +590,8 @@ def scrape_hotel_rate(page, hotel: dict, city_name: str, check_in: str) -> dict:
         page: Playwright page object
         hotel: Hotel configuration dict
         city_name: City name
+        city_config: City configuration dict (for event dates, city_type, etc.)
+        event_info: Event metadata dict
         check_in: Check-in date (YYYY-MM-DD)
 
     Returns:
@@ -388,19 +599,36 @@ def scrape_hotel_rate(page, hotel: dict, city_name: str, check_in: str) -> dict:
     """
     check_out = (datetime.strptime(check_in, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
 
+    # Get event dates for this city (empty for control cities)
+    event_dates = city_config.get("event_dates", city_config.get("game_dates", []))
+
+    # Calculate days to event
+    lead_time = calculate_days_to_event(check_in, event_dates)
+
+    # Get venue proximity (new name) or proximity (legacy)
+    venue_proximity = hotel.get("venue_proximity", hotel.get("proximity"))
+
     result = {
         "hotel_id": hotel["id"],
         "hotel_name": hotel["name"],
         "city": city_name,
         "segment": hotel["segment"],
-        "proximity": hotel["proximity"],
+        "venue_proximity": venue_proximity,
+        "proximity": venue_proximity,  # Keep for backwards compatibility
         "check_in_date": check_in,
         "check_out_date": check_out,
         "rate": None,
         "currency": "CAD",
         "availability_status": "unknown",
         "scrape_timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "error": None
+        "error": None,
+        # New fields for lead-time analysis
+        "event_id": event_info.get("event_id"),
+        "event_type": event_info.get("event_type"),
+        "city_type": city_config.get("city_type", "event_host"),
+        "control_for": city_config.get("control_for"),
+        "days_to_event": lead_time["days_to_event"],
+        "nearest_event_date": lead_time["nearest_event_date"]
     }
 
     try:
@@ -411,7 +639,7 @@ def scrape_hotel_rate(page, hotel: dict, city_name: str, check_in: str) -> dict:
             rate_info.get("availability_status") == "available" and rate_info.get("rate") is None
         ):
             # Likely 2-night minimum - try multi-night calculation
-            print(f"    Single night unavailable, trying 2-night calculation...")
+            logger.debug(f"Single night unavailable for {hotel['name']}, trying 2-night calculation")
             rate_info = calculate_rate_from_multi_night(page, hotel, city_name, check_in)
 
         result.update(rate_info)
@@ -426,21 +654,83 @@ def scrape_hotel_rate(page, hotel: dict, city_name: str, check_in: str) -> dict:
     return result
 
 
-def run_scraper(cities: list[str] = None, dry_run: bool = False):
+def generate_scrape_report(all_results: list, errors: list) -> dict:
+    """Generate a summary report of the scrape session."""
+    report = {
+        "total_requests": len(all_results),
+        "successful": len([r for r in all_results if r.get("rate") is not None]),
+        "errors": len(errors),
+        "error_rate": f"{(len(errors) / len(all_results) * 100):.1f}%" if all_results else "N/A",
+        "error_breakdown": {},
+        "hotels_with_issues": [],
+    }
+
+    # Categorize errors
+    for err in errors:
+        error_msg = err.get("error", "Unknown")
+        # Extract error category
+        if "heap growth" in error_msg.lower():
+            category = "Memory/Heap"
+        elif "timeout" in error_msg.lower():
+            category = "Timeout"
+        elif "could not calculate" in error_msg.lower():
+            category = "Multi-night calculation"
+        elif "not found" in error_msg.lower():
+            category = "Hotel not found"
+        elif "failed after" in error_msg.lower():
+            category = "Retry exhausted"
+        else:
+            category = "Other"
+
+        report["error_breakdown"][category] = report["error_breakdown"].get(category, 0) + 1
+
+    # Find hotels with high error rates
+    hotel_errors = {}
+    for r in all_results:
+        hotel_id = r.get("hotel_id")
+        if hotel_id:
+            if hotel_id not in hotel_errors:
+                hotel_errors[hotel_id] = {"total": 0, "errors": 0, "name": r.get("hotel_name")}
+            hotel_errors[hotel_id]["total"] += 1
+            if r.get("error"):
+                hotel_errors[hotel_id]["errors"] += 1
+
+    for hotel_id, stats in hotel_errors.items():
+        if stats["errors"] > 0:
+            error_rate = stats["errors"] / stats["total"]
+            if error_rate >= 0.5:  # 50%+ error rate
+                report["hotels_with_issues"].append({
+                    "hotel_id": hotel_id,
+                    "hotel_name": stats["name"],
+                    "error_rate": f"{error_rate*100:.0f}%",
+                    "errors": stats["errors"],
+                    "total": stats["total"]
+                })
+
+    return report
+
+
+def run_scraper(cities: list[str] = None, event_id: str = "fifa_2026", dry_run: bool = False):
     """
-    Run the scraper for specified cities.
+    Run the scraper for specified cities with memory management.
 
     Args:
-        cities: List of city keys to scrape (e.g., ["toronto", "vancouver"]).
-                If None, scrapes all cities.
+        cities: List of city keys to scrape (e.g., ["toronto", "vancouver", "montreal"]).
+                If None, scrapes all cities for the event.
+        event_id: Event identifier (default: fifa_2026)
         dry_run: If True, only print what would be scraped without actually scraping.
     """
     config = load_config()
     settings = config["scrape_settings"]
+    max_retries = settings.get("max_retries", 3)
+
+    # Get cities config using helper (supports both new and legacy schema)
+    cities_config = get_event_cities(config, event_id)
+    event_info = get_event_info(config, event_id)
 
     # Determine which cities to scrape
     if cities is None:
-        cities = list(config["cities"].keys())
+        cities = list(cities_config.keys())
 
     # Prepare output directory
     now = datetime.now(timezone.utc)
@@ -452,64 +742,117 @@ def run_scraper(cities: list[str] = None, dry_run: bool = False):
     all_results = []
     errors = []
 
-    print(f"PitchPrice Hotel Rate Scraper")
-    print(f"==============================")
-    print(f"Scrape date: {scrape_date}")
-    print(f"Cities: {', '.join(cities)}")
-    print()
+    logger.info("=" * 60)
+    logger.info("PitchPrice Hotel Rate Scraper")
+    logger.info("=" * 60)
+    logger.info(f"Scrape date: {scrape_date}")
+    logger.info(f"Cities: {', '.join(cities)}")
+    logger.info(f"Log file: {LOG_DIR / 'scraper.log'}")
 
     if dry_run:
-        print("DRY RUN - Not actually scraping")
-        print()
+        logger.info("DRY RUN - Not actually scraping")
         for city_key in cities:
-            city_config = config["cities"][city_key]
-            dates = generate_dates(
-                city_config["date_range"]["start"],
-                city_config["date_range"]["end"]
-            )
-            print(f"{city_config['name']}: {len(city_config['hotels'])} hotels x {len(dates)} dates = {len(city_config['hotels']) * len(dates)} requests")
+            city_config = cities_config[city_key]
+            # Support both new (scrape_date_range) and legacy (date_range) schema
+            date_range = city_config.get("scrape_date_range", city_config.get("date_range", {}))
+            dates = generate_dates(date_range["start"], date_range["end"])
+            city_type = city_config.get("city_type", "event_host")
+            logger.info(f"{city_config['name']} ({city_type}): {len(city_config['hotels'])} hotels x {len(dates)} dates = {len(city_config['hotels']) * len(dates)} requests")
         return
 
+    # Memory management: refresh context every N hotels
+    REQUESTS_BEFORE_CONTEXT_REFRESH = 5  # Reduced from 10 to 5 for better memory management
+    request_count = 0
+
     with sync_playwright() as p:
-        # Launch browser with stealth settings
-        browser = p.chromium.launch(
-            headless=True,
-            args=[
-                '--disable-blink-features=AutomationControlled',
-                '--disable-dev-shm-usage',
-                '--no-sandbox',
-            ]
-        )
+        browser = None
+        context = None
+        page = None
 
-        context = browser.new_context(
-            viewport={'width': 1920, 'height': 1080},
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            locale='en-CA',
-            timezone_id='America/Toronto',
-        )
-
-        page = context.new_page()
-
-        # Apply stealth
-        stealth_sync(page)
-
-        for city_key in cities:
-            city_config = config["cities"][city_key]
-            city_name = city_config["name"]
-
-            print(f"\nScraping {city_name}")
-            print("-" * 40)
-
-            dates = generate_dates(
-                city_config["date_range"]["start"],
-                city_config["date_range"]["end"]
+        def launch_browser():
+            """Launch a fresh browser instance."""
+            nonlocal browser
+            return p.chromium.launch(
+                headless=True,
+                args=[
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-dev-shm-usage',
+                    '--no-sandbox',
+                    '--disable-gpu',
+                    '--single-process',
+                    '--disable-extensions',
+                    '--js-flags=--max-old-space-size=512',  # Limit JS heap
+                ]
             )
 
+        def create_fresh_context():
+            """Create a new browser context with stealth settings."""
+            nonlocal browser, context, page
+
+            # If browser is dead, restart it
+            try:
+                if browser is None or not browser.is_connected():
+                    logger.info("Browser not connected, launching new browser")
+                    browser = launch_browser()
+            except Exception as e:
+                logger.warning(f"Browser check failed, restarting: {e}")
+                try:
+                    if browser:
+                        browser.close()
+                except:
+                    pass
+                browser = launch_browser()
+
+            ctx = browser.new_context(
+                viewport={'width': 1920, 'height': 1080},
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                locale='en-CA',
+                timezone_id='America/Toronto',
+            )
+            pg = ctx.new_page()
+            stealth_sync(pg)
+            return ctx, pg
+
+        browser = launch_browser()
+        context, page = create_fresh_context()
+        logger.debug("Initial browser context created")
+
+        for city_key in cities:
+            city_config = cities_config[city_key]
+            city_name = city_config["name"]
+            city_type = city_config.get("city_type", "event_host")
+
+            logger.info(f"Scraping {city_name} ({city_type})")
+
+            # Support both new (scrape_date_range) and legacy (date_range) schema
+            date_range = city_config.get("scrape_date_range", city_config.get("date_range", {}))
+            dates = generate_dates(date_range["start"], date_range["end"])
+
             for hotel in city_config["hotels"]:
-                print(f"\nHotel: {hotel['name']}")
+                logger.info(f"Hotel: {hotel['name']}")
+
+                # Refresh context periodically to prevent memory leaks
+                request_count += 1
+                if request_count % REQUESTS_BEFORE_CONTEXT_REFRESH == 0:
+                    logger.info(f"Refreshing browser context after {request_count} hotel batches")
+                    try:
+                        context.close()
+                    except Exception as e:
+                        logger.warning(f"Error closing old context: {e}")
+                    try:
+                        context, page = create_fresh_context()
+                    except Exception as e:
+                        logger.error(f"Failed to create fresh context: {e}, restarting browser")
+                        try:
+                            browser.close()
+                        except:
+                            pass
+                        browser = launch_browser()
+                        context, page = create_fresh_context()
+                    time.sleep(2)  # Give browser time to stabilize
 
                 for check_in in dates:
-                    result = scrape_hotel_rate(page, hotel, city_name, check_in)
+                    result = scrape_hotel_rate(page, hotel, city_name, city_config, event_info, check_in)
                     all_results.append(result)
 
                     if result["error"]:
@@ -518,11 +861,11 @@ def run_scraper(cities: list[str] = None, dry_run: bool = False):
                             "date": check_in,
                             "error": result["error"]
                         })
-                        print(f"    {check_in}: ERROR - {result['error']}")
+                        logger.error(f"{hotel['name']} {check_in}: ERROR - {result['error']}")
                     elif result["rate"]:
-                        print(f"    {check_in}: ${result['rate']} {result['currency']}")
+                        logger.info(f"{hotel['name']} {check_in}: ${result['rate']} {result['currency']}")
                     else:
-                        print(f"    {check_in}: {result['availability_status']}")
+                        logger.info(f"{hotel['name']} {check_in}: {result['availability_status']}")
 
                     # Random delay between requests
                     delay = random.uniform(
@@ -531,34 +874,61 @@ def run_scraper(cities: list[str] = None, dry_run: bool = False):
                     )
                     time.sleep(delay)
 
+        # Clean up
+        try:
+            context.close()
+        except Exception:
+            pass
         browser.close()
+        logger.debug("Browser closed")
+
+    # Generate session report
+    report = generate_scrape_report(all_results, errors)
 
     # Save results
     output_file = output_dir / f"scrape_{scrape_timestamp}.json"
     output_data = {
         "scrape_metadata": {
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "event_id": event_info.get("event_id"),
+            "event_name": event_info.get("event_name"),
             "cities_scraped": cities,
             "total_results": len(all_results),
             "errors_count": len(errors)
         },
         "results": all_results,
-        "errors": errors
+        "errors": errors,
+        "report": report
     }
 
     with open(output_file, "w") as f:
         json.dump(output_data, f, indent=2)
 
-    print(f"\n\nScrape complete!")
-    print(f"Results saved to: {output_file}")
-    print(f"Total results: {len(all_results)}")
-    print(f"Errors: {len(errors)}")
+    # Log session report
+    logger.info("=" * 60)
+    logger.info("SCRAPE SESSION REPORT")
+    logger.info("=" * 60)
+    logger.info(f"Total requests: {report['total_requests']}")
+    logger.info(f"Successful: {report['successful']}")
+    logger.info(f"Errors: {report['errors']} ({report['error_rate']})")
+
+    if report['error_breakdown']:
+        logger.info("Error breakdown:")
+        for category, count in report['error_breakdown'].items():
+            logger.info(f"  - {category}: {count}")
+
+    if report['hotels_with_issues']:
+        logger.warning("Hotels with high error rates (>=50%):")
+        for h in report['hotels_with_issues']:
+            logger.warning(f"  - {h['hotel_name']}: {h['error_rate']} ({h['errors']}/{h['total']})")
+
+    logger.info(f"Results saved to: {output_file}")
 
     # Also update the latest.json symlink/copy for dashboard
     latest_file = DATA_DIR / "latest.json"
     with open(latest_file, "w") as f:
         json.dump(output_data, f, indent=2)
-    print(f"Latest data updated: {latest_file}")
+    logger.info(f"Latest data updated: {latest_file}")
 
     # Update the aggregated data file for the dashboard
     update_aggregated_data()
@@ -595,19 +965,28 @@ def update_aggregated_data():
             "scrapes": all_scrapes
         }, f, indent=2)
 
-    print(f"Aggregated data updated: {aggregated_file}")
+    logger.info(f"Aggregated data updated: {aggregated_file}")
 
 
 def main():
     """Main entry point."""
     import argparse
 
+    # Load config to get available cities
+    config = load_config()
+    cities_config = get_event_cities(config, "fifa_2026")
+    available_cities = list(cities_config.keys())
+
     parser = argparse.ArgumentParser(description="PitchPrice Hotel Rate Scraper")
     parser.add_argument(
         "--cities",
         nargs="+",
-        choices=["toronto", "vancouver"],
-        help="Cities to scrape (default: all)"
+        help=f"Cities to scrape (available: {', '.join(available_cities)}). Default: all"
+    )
+    parser.add_argument(
+        "--event",
+        default="fifa_2026",
+        help="Event ID to scrape (default: fifa_2026)"
     )
     parser.add_argument(
         "--dry-run",
@@ -617,7 +996,13 @@ def main():
 
     args = parser.parse_args()
 
-    run_scraper(cities=args.cities, dry_run=args.dry_run)
+    # Validate cities if provided
+    if args.cities:
+        invalid = [c for c in args.cities if c not in available_cities]
+        if invalid:
+            parser.error(f"Invalid cities: {', '.join(invalid)}. Available: {', '.join(available_cities)}")
+
+    run_scraper(cities=args.cities, event_id=args.event, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

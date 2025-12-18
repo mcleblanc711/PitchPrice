@@ -27,8 +27,15 @@
                 <label for="city-filter">City</label>
                 <select id="city-filter">
                     <option value="all">All Cities</option>
-                    <option value="toronto">Toronto</option>
-                    <option value="vancouver">Vancouver</option>
+                    <!-- Populated dynamically by JavaScript -->
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="city-type-filter">City Type</label>
+                <select id="city-type-filter">
+                    <option value="all">All</option>
+                    <option value="event_host">Event Hosts</option>
+                    <option value="control">Control Cities</option>
                 </select>
             </div>
             <div class="filter-group">
@@ -42,13 +49,19 @@
                 </select>
             </div>
             <div class="filter-group">
-                <label for="proximity-filter">Stadium Proximity</label>
+                <label for="proximity-filter">Venue Proximity</label>
                 <select id="proximity-filter">
                     <option value="all">All Distances</option>
                     <option value="near">Near</option>
                     <option value="medium">Medium</option>
                     <option value="far">Far</option>
                 </select>
+            </div>
+            <div class="filter-group date-filter-group">
+                <label>Check-in Dates</label>
+                <div class="date-checkboxes" id="date-filter">
+                    <!-- Populated dynamically -->
+                </div>
             </div>
         </section>
 
@@ -63,11 +76,13 @@
                 <h3>Lowest Rate</h3>
                 <div class="summary-value" id="min-rate">--</div>
                 <div class="summary-label">CAD/night</div>
+                <div class="summary-context" id="min-rate-context"></div>
             </div>
             <div class="summary-card">
                 <h3>Highest Rate</h3>
                 <div class="summary-value" id="max-rate">--</div>
                 <div class="summary-label">CAD/night</div>
+                <div class="summary-context" id="max-rate-context"></div>
             </div>
             <div class="summary-card">
                 <h3>Hotels Tracked</h3>
@@ -98,7 +113,29 @@
             </div>
         </section>
 
-        <!-- Lead Time Analysis -->
+        <!-- Lead-Time Pricing Curves (Hero Chart) -->
+        <section class="chart-section hero-chart">
+            <div class="chart-header">
+                <h2>Lead-Time Pricing Curves</h2>
+                <p class="chart-description">Indexed rates (100 = first observation) by days to event. Compare event host cities vs Montreal control.</p>
+            </div>
+            <div class="chart-container">
+                <canvas id="lead-time-curves-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Event Premium -->
+        <section class="chart-section">
+            <div class="chart-header">
+                <h2>Event Premium vs Montreal Control</h2>
+                <p class="chart-description">Price difference between event host cities (Toronto/Vancouver) and Montreal control city.</p>
+            </div>
+            <div class="chart-container">
+                <canvas id="event-premium-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Lead Time Analysis (original scatter) -->
         <section class="chart-section">
             <div class="chart-header">
                 <h2>Lead-Time Analysis</h2>
@@ -138,8 +175,9 @@
             <h2>About PitchPrice</h2>
             <p>
                 PitchPrice tracks hotel room rates in Toronto and Vancouver for the
-                FIFA World Cup 2026 game dates. Data is collected twice weekly from
-                Google Hotels and displayed here to help travelers understand pricing
+                FIFA World Cup 2026 game dates. Montreal is included as a control city
+                to measure event-driven price increases. Data is collected twice weekly from
+                Booking.com and displayed here to help travelers understand pricing
                 trends and find the best deals.
             </p>
             <div class="game-dates-info">
@@ -151,14 +189,18 @@
                     <h4>Vancouver Game Dates</h4>
                     <ul id="vancouver-game-dates"></ul>
                 </div>
+                <div class="city-dates">
+                    <h4>Montreal (Control)</h4>
+                    <ul id="montreal-game-dates"></ul>
+                </div>
             </div>
         </section>
     </main>
 
     <footer>
         <div class="container">
-            <p>&copy; 2024 PitchPrice. Data collected from Google Hotels.</p>
-            <p><a href="https://github.com/YOUR_USERNAME/PitchPrice" target="_blank">View on GitHub</a></p>
+            <p>&copy; 2025 PitchPrice. Data collected from Booking.com.</p>
+            <p><a href="https://github.com/mcleblanc711/PitchPrice" target="_blank">View on GitHub</a></p>
         </div>
     </footer>
 

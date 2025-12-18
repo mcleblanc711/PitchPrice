@@ -142,6 +142,76 @@ header .subtitle {
     box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.2);
 }
 
+/* Date Filter */
+.date-filter-group {
+    min-width: 280px;
+}
+
+.date-filter-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.date-filter-controls button {
+    padding: 4px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.2s;
+}
+
+.date-filter-controls button:hover {
+    background: var(--accent-primary);
+    color: white;
+    border-color: var(--accent-primary);
+}
+
+.date-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.date-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+
+.date-checkbox-item:hover {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.date-checkbox-item.game-date {
+    border: 1px solid var(--accent-primary);
+    font-weight: 600;
+}
+
+.date-checkbox-item input {
+    cursor: pointer;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent-primary);
+}
+
 /* Summary Cards */
 .summary-section {
     display: grid;
@@ -179,6 +249,24 @@ header .subtitle {
     margin-top: 4px;
 }
 
+.summary-context {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+    line-height: 1.4;
+}
+
+.summary-context .hotel-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.summary-context .date-info {
+    color: var(--accent-primary);
+}
+
 /* Chart Sections */
 .chart-section {
     background-color: var(--bg-secondary);
@@ -207,6 +295,16 @@ header .subtitle {
     position: relative;
     height: 400px;
     width: 100%;
+}
+
+/* Hero Chart */
+.chart-section.hero-chart {
+    border: 2px solid var(--accent-primary);
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(88, 166, 255, 0.05) 100%);
+}
+
+.chart-section.hero-chart .chart-container {
+    height: 450px;
 }
 
 /* Table Section */
@@ -394,6 +492,11 @@ tbody tr:hover {
 
 .city-dates li:last-child {
     border-bottom: none;
+}
+
+.city-dates li.no-games {
+    font-style: italic;
+    color: var(--text-muted);
 }
 
 /* Footer */

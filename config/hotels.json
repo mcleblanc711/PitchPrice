@@ -1,203 +1,305 @@
 {
-  "cities": {
-    "toronto": {
-      "name": "Toronto",
-      "stadium": "BMO Field",
-      "stadium_address": "170 Princes' Blvd, Toronto, ON",
-      "date_range": {
-        "start": "2026-06-10",
-        "end": "2026-07-05"
-      },
-      "game_dates": [
-        "2026-06-12",
-        "2026-06-17",
-        "2026-06-20",
-        "2026-06-23",
-        "2026-06-26",
-        "2026-07-02"
-      ],
-      "hotels": [
-        {
-          "id": "tor-riu-plaza",
-          "name": "Riu Plaza Toronto",
-          "segment": "upscale",
-          "proximity": "medium",
-          "address": "168 Simcoe St, Toronto, ON",
-          "notes": "Downtown near Entertainment District"
+  "events": {
+    "fifa_2026": {
+      "name": "FIFA World Cup 2026",
+      "event_type": "fifa",
+      "cities": {
+        "toronto": {
+          "name": "Toronto",
+          "city_type": "event_host",
+          "venue": "BMO Field",
+          "venue_address": "170 Princes' Blvd, Toronto, ON",
+          "event_dates": [
+            "2026-06-12",
+            "2026-06-17",
+            "2026-06-20",
+            "2026-06-23",
+            "2026-06-26",
+            "2026-07-02"
+          ],
+          "scrape_date_range": {
+            "start": "2026-06-10",
+            "end": "2026-07-05"
+          },
+          "hotels": [
+            {
+              "id": "tor-riu-plaza",
+              "name": "Riu Plaza Toronto",
+              "segment": "upscale",
+              "venue_proximity": "medium",
+              "address": "168 Simcoe St, Toronto, ON",
+              "notes": "Downtown near Entertainment District"
+            },
+            {
+              "id": "tor-fairmont-royal-york",
+              "name": "Fairmont Royal York",
+              "segment": "luxury",
+              "venue_proximity": "medium",
+              "address": "100 Front St W, Toronto, ON",
+              "notes": "Historic landmark hotel, Union Station area"
+            },
+            {
+              "id": "tor-ritz-carlton",
+              "name": "The Ritz-Carlton Toronto",
+              "segment": "luxury",
+              "venue_proximity": "medium",
+              "address": "181 Wellington St W, Toronto, ON",
+              "notes": "Premium luxury, Entertainment District"
+            },
+            {
+              "id": "tor-novotel-centre",
+              "name": "The Novotel Toronto Centre",
+              "segment": "upscale",
+              "venue_proximity": "medium",
+              "address": "45 The Esplanade, Toronto, ON",
+              "notes": "Near Union Station and waterfront"
+            },
+            {
+              "id": "tor-marriott-eaton",
+              "name": "Marriott Downtown at CF Toronto Eaton Centre",
+              "segment": "upscale",
+              "venue_proximity": "near",
+              "address": "525 Bay St, Toronto, ON",
+              "notes": "Connected to Eaton Centre, downtown core"
+            },
+            {
+              "id": "tor-chelsea",
+              "name": "Chelsea Hotel Toronto",
+              "segment": "midscale",
+              "venue_proximity": "far",
+              "address": "33 Gerrard St W, Toronto, ON",
+              "notes": "Large hotel, Yonge-Dundas area"
+            },
+            {
+              "id": "tor-radisson-blu",
+              "name": "Radisson Blu Toronto Downtown",
+              "segment": "midscale",
+              "venue_proximity": "medium",
+              "address": "249 Queens Quay W, Toronto, ON",
+              "notes": "Harbourfront waterfront location"
+            },
+            {
+              "id": "tor-courtyard-marriott",
+              "name": "Courtyard by Marriott Toronto Downtown",
+              "segment": "midscale",
+              "venue_proximity": "medium",
+              "address": "475 Yonge St, Toronto, ON",
+              "notes": "College Park area"
+            },
+            {
+              "id": "tor-super-8",
+              "name": "Super 8 by Wyndham Downtown Toronto",
+              "segment": "economy",
+              "venue_proximity": "far",
+              "address": "222 Spadina Ave, Toronto, ON",
+              "notes": "Chinatown area, budget option"
+            },
+            {
+              "id": "tor-days-inn",
+              "name": "Days Inn by Wyndham Toronto Downtown",
+              "segment": "economy",
+              "venue_proximity": "medium",
+              "address": "30 Carlton St, Toronto, ON",
+              "notes": "Downtown budget option"
+            }
+          ]
         },
-        {
-          "id": "tor-fairmont-royal-york",
-          "name": "Fairmont Royal York",
-          "segment": "luxury",
-          "proximity": "medium",
-          "address": "100 Front St W, Toronto, ON",
-          "notes": "Historic landmark hotel, Union Station area"
+        "vancouver": {
+          "name": "Vancouver",
+          "city_type": "event_host",
+          "venue": "BC Place",
+          "venue_address": "777 Pacific Blvd, Vancouver, BC",
+          "event_dates": [
+            "2026-06-13",
+            "2026-06-18",
+            "2026-06-21",
+            "2026-06-24",
+            "2026-06-26",
+            "2026-07-02",
+            "2026-07-07"
+          ],
+          "scrape_date_range": {
+            "start": "2026-06-10",
+            "end": "2026-07-08"
+          },
+          "hotels": [
+            {
+              "id": "van-jw-marriott-parq",
+              "name": "JW Marriott Parq Vancouver",
+              "segment": "luxury",
+              "venue_proximity": "near",
+              "address": "39 Smithe St, Vancouver, BC",
+              "notes": "Adjacent to BC Place stadium"
+            },
+            {
+              "id": "van-rosewood-georgia",
+              "name": "Rosewood Hotel Georgia",
+              "segment": "luxury",
+              "venue_proximity": "near",
+              "address": "801 W Georgia St, Vancouver, BC",
+              "notes": "Historic luxury hotel, downtown core"
+            },
+            {
+              "id": "van-sheraton-wall-centre",
+              "name": "Sheraton Vancouver Wall Centre",
+              "segment": "upscale",
+              "venue_proximity": "medium",
+              "address": "1088 Burrard St, Vancouver, BC",
+              "notes": "Twin tower hotel, central downtown"
+            },
+            {
+              "id": "van-delta-suites",
+              "name": "Delta Hotels Vancouver Downtown Suites",
+              "segment": "upscale",
+              "venue_proximity": "near",
+              "address": "550 W Hastings St, Vancouver, BC",
+              "notes": "Downtown business district"
+            },
+            {
+              "id": "van-pinnacle-harbourfront",
+              "name": "Pinnacle Hotel Harbourfront",
+              "segment": "upscale",
+              "venue_proximity": "medium",
+              "address": "1133 W Hastings St, Vancouver, BC",
+              "notes": "Coal Harbour waterfront"
+            },
+            {
+              "id": "van-marriott-pinnacle",
+              "name": "Vancouver Marriott Pinnacle Downtown Hotel",
+              "segment": "midscale",
+              "venue_proximity": "near",
+              "address": "1128 W Hastings St, Vancouver, BC",
+              "notes": "Harbourfront downtown location"
+            },
+            {
+              "id": "van-sandman-suites-davie",
+              "name": "Sandman Suites Vancouver on Davie",
+              "segment": "midscale",
+              "venue_proximity": "medium",
+              "address": "1160 Davie St, Vancouver, BC",
+              "notes": "West End location, near English Bay"
+            },
+            {
+              "id": "van-fairmont-waterfront",
+              "name": "Fairmont Waterfront Vancouver",
+              "segment": "midscale",
+              "venue_proximity": "near",
+              "address": "900 Canada Pl Way, Vancouver, BC",
+              "notes": "Waterfront location, near convention centre"
+            },
+            {
+              "id": "van-samesun",
+              "name": "Samesun Vancouver",
+              "segment": "economy",
+              "venue_proximity": "medium",
+              "address": "1018 Granville St, Vancouver, BC",
+              "notes": "Hostel/budget hotel, Granville Street"
+            },
+            {
+              "id": "van-days-inn",
+              "name": "Days Inn by Wyndham Vancouver Downtown",
+              "segment": "economy",
+              "venue_proximity": "medium",
+              "address": "921 W Pender St, Vancouver, BC",
+              "notes": "Budget option, downtown location"
+            }
+          ]
         },
-        {
-          "id": "tor-ritz-carlton",
-          "name": "The Ritz-Carlton Toronto",
-          "segment": "luxury",
-          "proximity": "medium",
-          "address": "181 Wellington St W, Toronto, ON",
-          "notes": "Premium luxury, Entertainment District"
-        },
-        {
-          "id": "tor-novotel-centre",
-          "name": "The Novotel Toronto Centre",
-          "segment": "upscale",
-          "proximity": "medium",
-          "address": "45 The Esplanade, Toronto, ON",
-          "notes": "Near Union Station and waterfront"
-        },
-        {
-          "id": "tor-marriott-eaton",
-          "name": "Marriott Downtown at CF Toronto Eaton Centre",
-          "segment": "upscale",
-          "proximity": "near",
-          "address": "525 Bay St, Toronto, ON",
-          "notes": "Connected to Eaton Centre, downtown core"
-        },
-        {
-          "id": "tor-chelsea",
-          "name": "Chelsea Hotel Toronto",
-          "segment": "midscale",
-          "proximity": "far",
-          "address": "33 Gerrard St W, Toronto, ON",
-          "notes": "Large hotel, Yonge-Dundas area"
-        },
-        {
-          "id": "tor-radisson-blu",
-          "name": "Radisson Blu Toronto Downtown",
-          "segment": "midscale",
-          "proximity": "medium",
-          "address": "249 Queens Quay W, Toronto, ON",
-          "notes": "Harbourfront waterfront location"
-        },
-        {
-          "id": "tor-courtyard-marriott",
-          "name": "Courtyard by Marriott Toronto Downtown",
-          "segment": "midscale",
-          "proximity": "medium",
-          "address": "475 Yonge St, Toronto, ON",
-          "notes": "College Park area"
-        },
-        {
-          "id": "tor-super-8",
-          "name": "Super 8 by Wyndham Downtown Toronto",
-          "segment": "economy",
-          "proximity": "far",
-          "address": "222 Spadina Ave, Toronto, ON",
-          "notes": "Chinatown area, budget option"
-        },
-        {
-          "id": "tor-days-inn",
-          "name": "Days Inn by Wyndham Toronto Downtown",
-          "segment": "economy",
-          "proximity": "medium",
-          "address": "30 Carlton St, Toronto, ON",
-          "notes": "Downtown budget option"
+        "montreal": {
+          "name": "Montreal",
+          "city_type": "control",
+          "control_for": "fifa_2026",
+          "venue": null,
+          "venue_address": null,
+          "event_dates": [],
+          "scrape_date_range": {
+            "start": "2026-06-10",
+            "end": "2026-07-08"
+          },
+          "hotels": [
+            {
+              "id": "mtl-ritz-carlton",
+              "name": "Ritz-Carlton Montreal",
+              "segment": "luxury",
+              "venue_proximity": null,
+              "address": "1228 Rue Sherbrooke O, Montreal, QC",
+              "notes": "Historic luxury hotel, Golden Square Mile"
+            },
+            {
+              "id": "mtl-four-seasons",
+              "name": "Four Seasons Hotel Montreal",
+              "segment": "luxury",
+              "venue_proximity": null,
+              "address": "1440 Rue de la Montagne, Montreal, QC",
+              "notes": "Modern luxury, downtown core"
+            },
+            {
+              "id": "mtl-fairmont-queen-elizabeth",
+              "name": "Fairmont The Queen Elizabeth",
+              "segment": "upscale",
+              "venue_proximity": null,
+              "address": "900 Boul Rene-Levesque O, Montreal, QC",
+              "notes": "Historic landmark, above Central Station"
+            },
+            {
+              "id": "mtl-marriott-chateau",
+              "name": "Montreal Marriott Chateau Champlain",
+              "segment": "upscale",
+              "venue_proximity": null,
+              "address": "1050 Rue de la Gauchetiere O, Montreal, QC",
+              "notes": "Iconic architecture, downtown"
+            },
+            {
+              "id": "mtl-delta-centre-ville",
+              "name": "Delta Hotels Montreal",
+              "segment": "upscale",
+              "venue_proximity": null,
+              "address": "475 Avenue du President-Kennedy, Montreal, QC",
+              "notes": "Downtown location, Place des Arts area"
+            },
+            {
+              "id": "mtl-holiday-inn-centre-ville",
+              "name": "Holiday Inn Montreal Centre-Ville",
+              "segment": "midscale",
+              "venue_proximity": null,
+              "address": "99 Avenue Viger O, Montreal, QC",
+              "notes": "Chinatown area, near Old Montreal"
+            },
+            {
+              "id": "mtl-novotel-centre",
+              "name": "Novotel Montreal Centre",
+              "segment": "midscale",
+              "venue_proximity": null,
+              "address": "1180 Rue de la Montagne, Montreal, QC",
+              "notes": "Downtown core, near shopping"
+            },
+            {
+              "id": "mtl-best-western-ville-marie",
+              "name": "Best Western Plus Montreal Downtown-Hotel Europa",
+              "segment": "midscale",
+              "venue_proximity": null,
+              "address": "1240 Rue Drummond, Montreal, QC",
+              "notes": "Downtown budget-friendly"
+            },
+            {
+              "id": "mtl-super-8-centre-ville",
+              "name": "Super 8 by Wyndham Montreal",
+              "segment": "economy",
+              "venue_proximity": null,
+              "address": "1055 Boul Saint-Laurent, Montreal, QC",
+              "notes": "Budget option, near Old Montreal"
+            },
+            {
+              "id": "mtl-days-inn-centre-ville",
+              "name": "Days Inn by Wyndham Montreal Downtown",
+              "segment": "economy",
+              "venue_proximity": null,
+              "address": "215 Boul Rene-Levesque E, Montreal, QC",
+              "notes": "Downtown budget option"
+            }
+          ]
         }
-      ]
-    },
-    "vancouver": {
-      "name": "Vancouver",
-      "stadium": "BC Place",
-      "stadium_address": "777 Pacific Blvd, Vancouver, BC",
-      "date_range": {
-        "start": "2026-06-15",
-        "end": "2026-07-08"
-      },
-      "game_dates": [
-        "2026-06-13",
-        "2026-06-18",
-        "2026-06-21",
-        "2026-06-24",
-        "2026-06-26",
-        "2026-07-02",
-        "2026-07-07"
-      ],
-      "hotels": [
-        {
-          "id": "van-jw-marriott-parq",
-          "name": "JW Marriott Parq Vancouver",
-          "segment": "luxury",
-          "proximity": "near",
-          "address": "39 Smithe St, Vancouver, BC",
-          "notes": "Adjacent to BC Place stadium"
-        },
-        {
-          "id": "van-rosewood-georgia",
-          "name": "Rosewood Hotel Georgia",
-          "segment": "luxury",
-          "proximity": "near",
-          "address": "801 W Georgia St, Vancouver, BC",
-          "notes": "Historic luxury hotel, downtown core"
-        },
-        {
-          "id": "van-sheraton-wall-centre",
-          "name": "Sheraton Vancouver Wall Centre",
-          "segment": "upscale",
-          "proximity": "medium",
-          "address": "1088 Burrard St, Vancouver, BC",
-          "notes": "Twin tower hotel, central downtown"
-        },
-        {
-          "id": "van-delta-suites",
-          "name": "Delta Hotels Vancouver Downtown Suites",
-          "segment": "upscale",
-          "proximity": "near",
-          "address": "550 W Hastings St, Vancouver, BC",
-          "notes": "Downtown business district"
-        },
-        {
-          "id": "van-pinnacle-harbourfront",
-          "name": "Pinnacle Hotel Harbourfront",
-          "segment": "upscale",
-          "proximity": "medium",
-          "address": "1133 W Hastings St, Vancouver, BC",
-          "notes": "Coal Harbour waterfront"
-        },
-        {
-          "id": "van-marriott-pinnacle",
-          "name": "Vancouver Marriott Pinnacle Downtown Hotel",
-          "segment": "midscale",
-          "proximity": "near",
-          "address": "1128 W Hastings St, Vancouver, BC",
-          "notes": "Harbourfront downtown location"
-        },
-        {
-          "id": "van-sandman-suites-davie",
-          "name": "Sandman Suites Vancouver on Davie",
-          "segment": "midscale",
-          "proximity": "medium",
-          "address": "1160 Davie St, Vancouver, BC",
-          "notes": "West End location, near English Bay"
-        },
-        {
-          "id": "van-fairmont-waterfront",
-          "name": "Fairmont Waterfront Vancouver",
-          "segment": "midscale",
-          "proximity": "near",
-          "address": "900 Canada Pl Way, Vancouver, BC",
-          "notes": "Waterfront location, near convention centre"
-        },
-        {
-          "id": "van-samesun",
-          "name": "Samesun Vancouver",
-          "segment": "economy",
-          "proximity": "medium",
-          "address": "1018 Granville St, Vancouver, BC",
-          "notes": "Hostel/budget hotel, Granville Street"
-        },
-        {
-          "id": "van-days-inn",
-          "name": "Days Inn by Wyndham Vancouver Downtown",
-          "segment": "economy",
-          "proximity": "medium",
-          "address": "921 W Pender St, Vancouver, BC",
-          "notes": "Budget option, downtown location"
-        }
-      ]
+      }
     }
   },
   "scrape_settings": {
