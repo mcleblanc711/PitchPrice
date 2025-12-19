@@ -888,10 +888,14 @@ function renderLeadTimeCurvesChart(results) {
     for (const [cityName, dayData] of Object.entries(cityData)) {
         const points = [];
         for (const [days, rates] of Object.entries(dayData)) {
-            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
-            points.push({ x: parseInt(days), y: avgRate });
+            const daysInt = parseInt(days);
+            // Only include non-negative days (before or on event date)
+            if (daysInt >= 0) {
+                const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+                points.push({ x: daysInt, y: avgRate });
+            }
         }
-        // Sort by days to event
+        // Sort by days to event (descending - furthest out first)
         points.sort((a, b) => b.x - a.x);
 
         if (points.length > 0) {
@@ -900,10 +904,10 @@ function renderLeadTimeCurvesChart(results) {
                 data: points,
                 borderColor: cityColors[cityName] || '#8b949e',
                 backgroundColor: (cityColors[cityName] || '#8b949e') + '20',
-                tension: 0.3,
+                tension: 0,  // No curve smoothing - show actual data points connected by straight lines
                 fill: false,
-                pointRadius: 4,
-                pointHoverRadius: 6,
+                pointRadius: 6,  // Larger points since we have limited data
+                pointHoverRadius: 8,
                 borderWidth: cityName === 'Montreal' ? 2 : 3,
                 borderDash: cityName === 'Montreal' ? [5, 5] : []
             });
@@ -919,13 +923,15 @@ function renderLeadTimeCurvesChart(results) {
     let minDays = Infinity, maxDays = -Infinity;
     for (const dataset of datasets) {
         for (const point of dataset.data) {
-            minDays = Math.min(minDays, point.x);
-            maxDays = Math.max(maxDays, point.x);
+            if (point.x >= 0) {  // Only consider non-negative days
+                minDays = Math.min(minDays, point.x);
+                maxDays = Math.max(maxDays, point.x);
+            }
         }
     }
-    // Add some padding
-    minDays = Math.max(-5, minDays - 5);
-    maxDays = maxDays + 5;
+    // Small padding, but never go below 0
+    minDays = Math.max(0, minDays - 2);
+    maxDays = maxDays + 2;
 
     CHARTS.leadTimeCurves = new Chart(ctx, {
         type: 'line',
