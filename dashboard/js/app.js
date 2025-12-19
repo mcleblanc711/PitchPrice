@@ -915,6 +915,18 @@ function renderLeadTimeCurvesChart(results) {
         return;
     }
 
+    // Calculate x-axis range from actual data
+    let minDays = Infinity, maxDays = -Infinity;
+    for (const dataset of datasets) {
+        for (const point of dataset.data) {
+            minDays = Math.min(minDays, point.x);
+            maxDays = Math.max(maxDays, point.x);
+        }
+    }
+    // Add some padding
+    minDays = Math.max(-5, minDays - 5);
+    maxDays = maxDays + 5;
+
     CHARTS.leadTimeCurves = new Chart(ctx, {
         type: 'line',
         data: { datasets },
@@ -930,11 +942,11 @@ function renderLeadTimeCurvesChart(results) {
                     type: 'linear',
                     title: {
                         display: true,
-                        text: 'Days to Event (T-60 to T-0)'
+                        text: 'Days Until Check-in'
                     },
                     reverse: true,
-                    min: -5,
-                    max: 60
+                    min: minDays,
+                    max: maxDays
                 },
                 y: {
                     title: {
@@ -953,7 +965,11 @@ function renderLeadTimeCurvesChart(results) {
                 tooltip: {
                     callbacks: {
                         label: (context) => {
-                            return `${context.dataset.label}: ${context.raw.y.toFixed(1)} (${context.raw.x} days out)`;
+                            const days = context.raw.x;
+                            const indexed = context.raw.y.toFixed(1);
+                            const change = (context.raw.y - 100).toFixed(1);
+                            const sign = change >= 0 ? '+' : '';
+                            return `${context.dataset.label}: ${indexed} (${sign}${change}%) at T-${days}`;
                         }
                     }
                 }
