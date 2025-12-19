@@ -636,7 +636,7 @@ function renderRateEvolutionChart(results, skipToggleRefresh = false) {
 
     CHARTS.rateEvolution = new Chart(ctx, {
         type: 'line',
-        data: { labels: sortedLabels, datasets },
+        data: { datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -646,7 +646,14 @@ function renderRateEvolutionChart(results, skipToggleRefresh = false) {
             },
             scales: {
                 x: {
-                    type: 'category',
+                    type: 'time',
+                    time: {
+                        unit: 'day',
+                        displayFormats: {
+                            day: 'yyyy-MM-dd'
+                        },
+                        tooltipFormat: 'yyyy-MM-dd'
+                    },
                     title: {
                         display: true,
                         text: 'Scrape Date'
