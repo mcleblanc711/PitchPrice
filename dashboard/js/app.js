@@ -575,7 +575,7 @@ function renderRateEvolutionChart(results, skipToggleRefresh = false) {
     for (const result of results) {
         if (hotelData[result.hotel_id] && result.rate) {
             hotelData[result.hotel_id].data.push({
-                x: result.scrape_date,
+                x: new Date(result.scrape_date + 'T12:00:00'),
                 y: result.rate,
                 checkIn: result.check_in_date
             });
