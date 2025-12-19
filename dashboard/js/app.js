@@ -571,14 +571,39 @@ function renderRateEvolutionChart(results, skipToggleRefresh = false) {
         };
     });
 
-    // Organize data by hotel
+    // Organize data by hotel, aggregating rates per scrape date
+    // (average across all check-in dates for that scrape)
     for (const result of results) {
         if (hotelData[result.hotel_id] && result.rate) {
-            hotelData[result.hotel_id].data.push({
-                x: new Date(result.scrape_date + 'T12:00:00'),
-                y: result.rate,
-                checkIn: result.check_in_date
-            });
+            const scrapeDate = result.scrape_date;
+            if (!hotelData[result.hotel_id].byDate) {
+                hotelData[result.hotel_id].byDate = {};
+            }
+            if (!hotelData[result.hotel_id].byDate[scrapeDate]) {
+                hotelData[result.hotel_id].byDate[scrapeDate] = {
+                    rates: [],
+                    checkIns: []
+                };
+            }
+            hotelData[result.hotel_id].byDate[scrapeDate].rates.push(result.rate);
+            hotelData[result.hotel_id].byDate[scrapeDate].checkIns.push(result.check_in_date);
+        }
+    }
+
+    // Convert aggregated data to chart data points (average rate per scrape date)
+    for (const hotelId of Object.keys(hotelData)) {
+        const hotel = hotelData[hotelId];
+        if (hotel.byDate) {
+            for (const [scrapeDate, dateData] of Object.entries(hotel.byDate)) {
+                const avgRate = Math.round(dateData.rates.reduce((a, b) => a + b, 0) / dateData.rates.length);
+                hotel.data.push({
+                    x: new Date(scrapeDate + 'T12:00:00'),
+                    y: avgRate,
+                    numDates: dateData.rates.length,
+                    minRate: Math.min(...dateData.rates),
+                    maxRate: Math.max(...dateData.rates)
+                });
+            }
         }
     }
 
@@ -593,7 +618,7 @@ function renderRateEvolutionChart(results, skipToggleRefresh = false) {
         .map(h => {
             // Sort data points by date chronologically
             const sortedData = [...h.data].sort((a, b) => {
-                return new Date(a.x) - new Date(b.x);
+                return a.x - b.x;
             });
             return {
                 label: h.label,
@@ -679,7 +704,10 @@ function renderRateEvolutionChart(results, skipToggleRefresh = false) {
                     callbacks: {
                         label: (context) => {
                             const data = context.raw;
-                            return `${context.dataset.label}: $${data.y} (check-in: ${data.checkIn})`;
+                            if (data.numDates > 1) {
+                                return `${context.dataset.label}: $${data.y} avg ($${data.minRate}-$${data.maxRate}, ${data.numDates} dates)`;
+                            }
+                            return `${context.dataset.label}: $${data.y}`;
                         }
                     }
                 }

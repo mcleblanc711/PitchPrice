@@ -56,6 +56,64 @@ def is_browser_corruption_error(error: Exception) -> bool:
     return False
 
 
+# Segment-based price sanity thresholds (per night, in CAD)
+SEGMENT_PRICE_THRESHOLDS = {
+    "luxury": {"min": 200, "max": 3000, "typical_min": 300},
+    "upscale": {"min": 120, "max": 1500, "typical_min": 180},
+    "midscale": {"min": 80, "max": 800, "typical_min": 120},
+    "economy": {"min": 50, "max": 400, "typical_min": 70},
+}
+
+
+def sanity_check_rate(rate: int, segment: str, hotel_name: str) -> dict:
+    """
+    Validate a scraped rate against segment-based thresholds.
+
+    Returns dict with:
+        - valid: bool - whether the rate passes sanity checks
+        - flag: str or None - warning flag if suspicious but not invalid
+        - reason: str or None - explanation if flagged
+    """
+    if rate is None:
+        return {"valid": True, "flag": None, "reason": None}
+
+    thresholds = SEGMENT_PRICE_THRESHOLDS.get(segment, SEGMENT_PRICE_THRESHOLDS["midscale"])
+
+    # Hard fail: completely unrealistic prices
+    if rate < thresholds["min"]:
+        logger.warning(
+            f"SANITY CHECK FAIL: {hotel_name} ({segment}) rate ${rate} below minimum ${thresholds['min']}"
+        )
+        return {
+            "valid": False,
+            "flag": "price_too_low",
+            "reason": f"Rate ${rate} below segment minimum ${thresholds['min']}"
+        }
+
+    if rate > thresholds["max"]:
+        logger.warning(
+            f"SANITY CHECK FAIL: {hotel_name} ({segment}) rate ${rate} above maximum ${thresholds['max']}"
+        )
+        return {
+            "valid": False,
+            "flag": "price_too_high",
+            "reason": f"Rate ${rate} above segment maximum ${thresholds['max']}"
+        }
+
+    # Soft flag: suspiciously low but not impossible
+    if rate < thresholds["typical_min"]:
+        logger.info(
+            f"SANITY CHECK FLAG: {hotel_name} ({segment}) rate ${rate} below typical ${thresholds['typical_min']} - verify manually"
+        )
+        return {
+            "valid": True,
+            "flag": "price_suspicious_low",
+            "reason": f"Rate ${rate} below typical segment minimum ${thresholds['typical_min']}"
+        }
+
+    return {"valid": True, "flag": None, "reason": None}
+
+
 # Paths
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -677,6 +735,18 @@ def scrape_hotel_rate(page, hotel: dict, city_name: str, city_config: dict, even
             rate_info = calculate_rate_from_multi_night(page, hotel, city_name, check_in)
 
         result.update(rate_info)
+
+        # Sanity check the rate
+        if result.get("rate") is not None:
+            sanity = sanity_check_rate(result["rate"], hotel["segment"], hotel["name"])
+            result["sanity_check"] = sanity
+
+            if not sanity["valid"]:
+                # Rate failed sanity check - mark as invalid and clear the rate
+                logger.warning(f"Discarding invalid rate for {hotel['name']}: {sanity['reason']}")
+                result["rate"] = None
+                result["error"] = sanity["reason"]
+                result["availability_status"] = "error"
 
     except PlaywrightTimeout:
         result["error"] = "Navigation timeout"
