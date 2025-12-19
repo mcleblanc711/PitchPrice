@@ -870,20 +870,17 @@ def run_scraper(cities: list[str] = None, event_id: str = "fifa_2026", dry_run: 
                 request_count += 1
                 if request_count % REQUESTS_BEFORE_CONTEXT_REFRESH == 0:
                     logger.info(f"Refreshing browser context after {request_count} hotel batches")
+                    # Full browser restart for clean memory state
+                    context = None
+                    browser = None
                     try:
-                        context.close()
-                    except Exception as e:
-                        logger.warning(f"Error closing old context: {e}")
-                    try:
-                        context, page = create_fresh_context()
-                    except Exception as e:
-                        logger.error(f"Failed to create fresh context: {e}, restarting browser")
-                        try:
-                            browser.close()
-                        except:
-                            pass
-                        browser = launch_browser()
-                        context, page = create_fresh_context()
+                        import subprocess
+                        subprocess.run(['pkill', '-f', 'chromium'], capture_output=True, timeout=5)
+                    except Exception:
+                        pass
+                    time.sleep(2)
+                    browser = launch_browser()
+                    context, page = create_fresh_context()
                     time.sleep(2)  # Give browser time to stabilize
 
                 for check_in in dates:
@@ -896,13 +893,14 @@ def run_scraper(cities: list[str] = None, event_id: str = "fifa_2026", dry_run: 
                         except BrowserCorruptionError as e:
                             if corruption_retry < max_corruption_retries:
                                 logger.warning(f"Browser corruption on {hotel['name']} {check_in}, refreshing browser (attempt {corruption_retry + 1}/{max_corruption_retries})")
-                                # Close and restart everything
+                                # Don't try to close corrupted browser/context - it can hang
+                                # Just abandon them and launch fresh (GC will clean up)
+                                context = None
+                                browser = None
+                                # Kill any orphaned chromium processes to ensure clean state
                                 try:
-                                    context.close()
-                                except Exception:
-                                    pass
-                                try:
-                                    browser.close()
+                                    import subprocess
+                                    subprocess.run(['pkill', '-f', 'chromium'], capture_output=True, timeout=5)
                                 except Exception:
                                     pass
                                 time.sleep(2)
