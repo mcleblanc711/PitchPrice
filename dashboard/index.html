@@ -95,7 +95,12 @@
         <section class="chart-section">
             <div class="chart-header">
                 <h2>Rate Evolution Over Time</h2>
-                <p class="chart-description">Track how hotel rates change as the event approaches. Vertical lines indicate game dates.</p>
+                <p class="chart-description">Track how hotel rates change as the event approaches. Click hotels below to show/hide them.</p>
+            </div>
+            <div class="hotel-toggle-container">
+                <div class="hotel-toggles" id="hotel-toggles">
+                    <!-- Populated dynamically -->
+                </div>
             </div>
             <div class="chart-container">
                 <canvas id="rate-evolution-chart"></canvas>

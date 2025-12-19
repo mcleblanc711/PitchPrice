@@ -9,6 +9,7 @@ let CITIES_CONFIG = null;  // Cities config extracted from events
 let EVENT_INFO = null;     // Event metadata
 let DATA = null;
 let CHARTS = {};
+let EXCLUDED_HOTELS = new Set();  // Hotels excluded from Rate Evolution chart
 
 // Chart.js default dark theme configuration
 Chart.defaults.color = '#8b949e';
@@ -173,7 +174,20 @@ function updateDataFreshness() {
         return;
     }
 
-    const lastUpdate = new Date(DATA.last_updated);
+    // Use the most recent scrape timestamp from the data
+    let lastUpdate = new Date(DATA.last_updated);
+
+    // Also check the most recent scrape_timestamp from results
+    const allResults = getAllResults();
+    for (const result of allResults) {
+        if (result.scrape_timestamp) {
+            const resultDate = new Date(result.scrape_timestamp);
+            if (resultDate > lastUpdate) {
+                lastUpdate = resultDate;
+            }
+        }
+    }
+
     const now = new Date();
     const hoursSinceUpdate = (now - lastUpdate) / (1000 * 60 * 60);
 
@@ -439,13 +453,15 @@ function updateSummaryCards(results) {
         maxRecord = resultsWithRates.reduce((max, r) => r.rate > max.rate ? r : max);
     }
 
-    const hotels = getFilteredHotels();
+    // Count unique hotels with data in filtered results
+    const uniqueHotels = new Set(resultsWithRates.map(r => r.hotel_id));
+    const hotelsCount = uniqueHotels.size;
 
     // Update values
     document.getElementById('avg-rate').textContent = avgRate !== '--' ? `$${avgRate}` : '--';
     document.getElementById('min-rate').textContent = minRecord ? `$${minRecord.rate}` : '--';
     document.getElementById('max-rate').textContent = maxRecord ? `$${maxRecord.rate}` : '--';
-    document.getElementById('hotels-count').textContent = hotels.length;
+    document.getElementById('hotels-count').textContent = hotelsCount;
 
     // Update context for min rate
     const minContext = document.getElementById('min-rate-context');
@@ -477,9 +493,58 @@ function updateSummaryCards(results) {
 }
 
 /**
+ * Populate hotel toggle buttons for the Rate Evolution chart
+ */
+function populateHotelToggles(hotels, hotelData) {
+    const container = document.getElementById('hotel-toggles');
+    if (!container) return;
+
+    // Sort hotels by highest average rate (descending) so outliers are at top
+    const hotelsWithRates = hotels.map(hotel => {
+        const data = hotelData[hotel.id]?.data || [];
+        const rates = data.map(d => d.y).filter(r => r > 0);
+        const avgRate = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+        return { ...hotel, avgRate };
+    }).sort((a, b) => b.avgRate - a.avgRate);
+
+    container.innerHTML = hotelsWithRates.map((hotel, index) => {
+        const isExcluded = EXCLUDED_HOTELS.has(hotel.id);
+        const color = HOTEL_COLORS[hotels.findIndex(h => h.id === hotel.id) % HOTEL_COLORS.length];
+        const rateDisplay = hotel.avgRate > 0 ? `$${Math.round(hotel.avgRate)}` : '--';
+        return `
+            <button type="button"
+                    class="hotel-toggle ${isExcluded ? 'excluded' : ''}"
+                    data-hotel-id="${hotel.id}"
+                    style="--hotel-color: ${color}">
+                <span class="hotel-toggle-name">${hotel.name}</span>
+                <span class="hotel-toggle-rate">${rateDisplay}</span>
+            </button>
+        `;
+    }).join('');
+
+    // Add click handlers
+    container.querySelectorAll('.hotel-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const hotelId = btn.dataset.hotelId;
+            if (EXCLUDED_HOTELS.has(hotelId)) {
+                EXCLUDED_HOTELS.delete(hotelId);
+                btn.classList.remove('excluded');
+            } else {
+                EXCLUDED_HOTELS.add(hotelId);
+                btn.classList.add('excluded');
+            }
+            // Re-render chart with updated exclusions
+            const allResults = getAllResults();
+            const filteredResults = filterResults(allResults);
+            renderRateEvolutionChart(filteredResults, true);  // true = skip toggle refresh
+        });
+    });
+}
+
+/**
  * Render the rate evolution chart
  */
-function renderRateEvolutionChart(results) {
+function renderRateEvolutionChart(results, skipToggleRefresh = false) {
     const ctx = document.getElementById('rate-evolution-chart');
     if (!ctx) return;
 
@@ -499,6 +564,7 @@ function renderRateEvolutionChart(results) {
 
     hotels.forEach((hotel, index) => {
         hotelData[hotel.id] = {
+            id: hotel.id,
             label: hotel.name,
             color: HOTEL_COLORS[index % HOTEL_COLORS.length],
             data: []
@@ -516,19 +582,39 @@ function renderRateEvolutionChart(results) {
         }
     }
 
-    // Create datasets
+    // Populate hotel toggles (only on full refresh, not when toggling)
+    if (!skipToggleRefresh) {
+        populateHotelToggles(hotels, hotelData);
+    }
+
+    // Create datasets with sorted data, filtering out excluded hotels
     const datasets = Object.values(hotelData)
-        .filter(h => h.data.length > 0)
-        .map(h => ({
-            label: h.label,
-            data: h.data,
-            borderColor: h.color,
-            backgroundColor: h.color + '20',
-            tension: 0.3,
-            fill: false,
-            pointRadius: 3,
-            pointHoverRadius: 6
-        }));
+        .filter(h => h.data.length > 0 && !EXCLUDED_HOTELS.has(h.id))
+        .map(h => {
+            // Sort data points by date chronologically
+            const sortedData = [...h.data].sort((a, b) => {
+                return new Date(a.x) - new Date(b.x);
+            });
+            return {
+                label: h.label,
+                data: sortedData,
+                borderColor: h.color,
+                backgroundColor: h.color + '20',
+                tension: 0.3,
+                fill: false,
+                pointRadius: 3,
+                pointHoverRadius: 6
+            };
+        });
+
+    // Get all unique dates and sort them chronologically for x-axis labels
+    const allDates = new Set();
+    for (const dataset of datasets) {
+        for (const point of dataset.data) {
+            allDates.add(point.x);
+        }
+    }
+    const sortedLabels = [...allDates].sort((a, b) => new Date(a) - new Date(b));
 
     // Get event dates for annotations (only from event host cities)
     const filters = getFilters();
@@ -550,7 +636,7 @@ function renderRateEvolutionChart(results) {
 
     CHARTS.rateEvolution = new Chart(ctx, {
         type: 'line',
-        data: { datasets },
+        data: { labels: sortedLabels, datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -738,11 +824,18 @@ function renderLeadTimeCurvesChart(results) {
             cityData[cityName] = {};
         }
 
-        // Use days_to_event from result, or calculate if not present
+        // Use days_to_event from result, or calculate lead time for control cities
         let daysToEvent = result.days_to_event;
         if (daysToEvent === undefined || daysToEvent === null) {
-            // Skip if we can't calculate days to event
-            continue;
+            // For control cities, calculate lead time from scrape to check-in date
+            // This allows comparison with event host cities at the same lead times
+            if (result.check_in_date && result.scrape_timestamp) {
+                const checkIn = new Date(result.check_in_date + 'T00:00:00');
+                const scrapeDate = new Date(result.scrape_timestamp.split('T')[0] + 'T00:00:00');
+                daysToEvent = Math.floor((checkIn - scrapeDate) / (1000 * 60 * 60 * 24));
+            } else {
+                continue;
+            }
         }
 
         // Calculate indexed rate (100 = baseline)
